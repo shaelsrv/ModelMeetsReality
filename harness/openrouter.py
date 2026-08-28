@@ -111,3 +111,74 @@ def roster(arg: Optional[str] = None) -> list[str]:
     if src:
         return [m.strip() for m in src.split(",") if m.strip()]
     return list(DEFAULT_MODELS)
+
+
+# ---------------------------------------------------------------------------
+# Pluggable backends (LLM_BACKEND env):
+#   openrouter        (default) — the path above; OPENROUTER_BASE overrides let any
+#                     OpenAI-compatible endpoint serve (Ollama: http://localhost:11434/v1)
+#   claude-code       — shell out to the `claude` CLI in print mode, so runs bill the
+#                     user's EXISTING Claude subscription/limits instead of an API key.
+#                     ":online" model suffix maps to allowing the WebSearch tool.
+# The chat() signature is identical across backends; suites never know the difference.
+# ---------------------------------------------------------------------------
+import shutil as _shutil
+import subprocess as _sp
+
+_CLAUDE_BIN = os.environ.get("CLAUDE_CODE_BIN", "claude")
+
+
+def _claude_model(model: str) -> str:
+    m = model.lower()
+    for name in ("opus", "sonnet", "haiku"):
+        if name in m:
+            return name
+    return "sonnet"  # non-Anthropic slugs run as sonnet on this backend
+
+
+def _chat_claude_code(model, messages, *, max_tokens, timeout, retries) -> "ChatResult":
+    if not _shutil.which(_CLAUDE_BIN):
+        return ChatResult(text="", model=model,
+                          error=f"claude-code backend: '{_CLAUDE_BIN}' not on PATH")
+    online = ":online" in model
+    prompt = chr(10).join(
+        (("[system] " + m["content"]) if m.get("role") == "system" else m["content"])
+        for m in messages)
+    cmd = [_CLAUDE_BIN, "-p", prompt, "--model", _claude_model(model),
+           "--output-format", "json"]
+    if online:
+        cmd += ["--allowedTools", "WebSearch"]
+    last = None
+    for attempt in range(retries):
+        try:
+            r = _sp.run(cmd, capture_output=True, timeout=max(timeout, 300),
+                        encoding="utf-8", errors="replace")
+            out = (r.stdout or "").strip()
+            if not out:
+                last = f"empty output (rc={r.returncode}): {(r.stderr or '')[:200]}"
+                continue
+            j = json.loads(out)
+            if j.get("is_error"):
+                last = f"claude-code error: {str(j.get('result'))[:200]}"
+                continue
+            return ChatResult(text=j.get("result") or "", model=model,
+                              usage=j.get("usage", {}), raw=j)
+        except (_sp.TimeoutExpired, json.JSONDecodeError, OSError) as e:
+            last = f"{type(e).__name__}: {e}"
+            if attempt < retries - 1:
+                time.sleep(2 * (attempt + 1))
+    return ChatResult(text="", model=model, error=last)
+
+
+_chat_openrouter = chat
+
+
+def chat(model, messages, *, temperature=0.3, max_tokens=2400, tools=None,
+         retries=3, timeout=120):
+    backend = os.environ.get("LLM_BACKEND", "openrouter")
+    if backend == "claude-code":
+        return _chat_claude_code(model, messages, max_tokens=max_tokens,
+                                 timeout=timeout, retries=retries)
+    return _chat_openrouter(model, messages, temperature=temperature,
+                            max_tokens=max_tokens, tools=tools,
+                            retries=retries, timeout=timeout)

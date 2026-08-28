@@ -43,6 +43,22 @@ machinery and NO data: instantiate it, add your own models, accumulate your own 
 - `python -m suites.gather_evidence` + `grade_claims` — evidence-gated grading with
   the unresolvable / insufficient / not-yet-looked distinction kept honest.
 
+
+## Harness compatibility — run on what you already pay for
+
+The LLM layer is pluggable (`LLM_BACKEND` env):
+
+- `openrouter` (default) — one API key, many models. `OPENROUTER_BASE` accepts ANY
+  OpenAI-compatible endpoint: Ollama (`http://localhost:11434/v1`), LM Studio, vLLM,
+  OpenAI itself — so a local GPU or an existing OpenAI account works unchanged.
+- `claude-code` — no API key at all: calls shell out to the `claude` CLI in print
+  mode, billing your EXISTING Claude subscription (Pro/Max weekly limits). `:online`
+  model suffixes map to the CLI's WebSearch tool. Set `LLM_BACKEND=claude-code` and
+  every suite — watches, grading, classifiers, postmortems, worldviews — runs on the
+  limits you already have. Non-Anthropic model slugs run as sonnet on this backend.
+
+Mix freely: e.g. weekly loop on claude-code, big backtests on a metered key.
+
 ## Disciplines baked in
 
 Pre-registration before grading; criteria before outcome; confidence is earned, never
