@@ -1,0 +1,7 @@
+.env
+__pycache__/
+inbox/
+imports/
+trajectory/
+audits/
+povs/

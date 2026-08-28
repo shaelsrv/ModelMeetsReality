@@ -1,0 +1,26 @@
+"""Fleet registry — the ONLY place an instance names its models.
+
+fleet.json (repo root):
+{
+  "models": ["my-first-model", "another-model"],      // sister repos, siblings of this one
+  "classifiers": [],                                   // classifier meta-models, if any
+  "decision_repo": "",                                 // optional: repo whose lens decision_trace uses
+  "extra_ledgers": []                                  // optional: extra ledger paths for the grading loop
+}
+"""
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+_cfg = {}
+_f = ROOT / "fleet.json"
+if _f.exists():
+    _cfg = json.load(_f.open(encoding="utf-8"))
+
+MODEL_REPOS = _cfg.get("models", [])
+CLASSIFIERS = _cfg.get("classifiers", [])
+DECISION_REPO = _cfg.get("decision_repo", "")
+EXTRA_LEDGERS = _cfg.get("extra_ledgers", [])
+INSTRUMENT_LEDGERS = ([(f"{m}/predict/ledger.json", "model_watch", [m], None)
+                       for m in MODEL_REPOS]
+                      + [(l, "generic", None, None) for l in EXTRA_LEDGERS])
