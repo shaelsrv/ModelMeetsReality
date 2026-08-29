@@ -144,14 +144,16 @@ def _chat_claude_code(model, messages, *, max_tokens, timeout, retries) -> "Chat
     prompt = chr(10).join(
         (("[system] " + m["content"]) if m.get("role") == "system" else m["content"])
         for m in messages)
-    cmd = [_CLAUDE_BIN, "-p", prompt, "--model", _claude_model(model),
+    # prompt via STDIN: Windows argv caps ~32k chars and corpora exceed it
+    cmd = [_CLAUDE_BIN, "-p", "--model", _claude_model(model),
            "--output-format", "json"]
     if online:
         cmd += ["--allowedTools", "WebSearch"]
     last = None
     for attempt in range(retries):
         try:
-            r = _sp.run(cmd, capture_output=True, timeout=max(timeout, 300),
+            r = _sp.run(cmd, input=prompt, capture_output=True,
+                        timeout=max(timeout, 300),
                         encoding="utf-8", errors="replace")
             out = (r.stdout or "").strip()
             if not out:
