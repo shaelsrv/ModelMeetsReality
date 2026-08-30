@@ -222,7 +222,8 @@ def main() -> None:
         join_report()
         return
     if not os.environ.get("OPENROUTER_API_KEY"):
-        raise SystemExit("OPENROUTER_API_KEY not set")
+        if os.environ.get("LLM_BACKEND") != "claude-code":
+            raise SystemExit("OPENROUTER_API_KEY not set (or set LLM_BACKEND=claude-code)")
     targets = CLASSIFIERS if a.all or not a.classifier else [a.classifier]
     for t in targets:
         annotate(t, a.model, a.limit)

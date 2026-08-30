@@ -225,8 +225,9 @@ def main():
     ap.add_argument("--model", default=None)
     ap.add_argument("--horizon", type=int, default=45)
     a = ap.parse_args()
-    if not os.environ.get("OPENROUTER_API_KEY"):
-        print("[note] no key"); return
+    if not (os.environ.get("OPENROUTER_API_KEY")
+            or os.environ.get("LLM_BACKEND") == "claude-code"):
+        print("[note] no key and no claude-code backend"); return
     if a.assess:
         cmd_assess(a.repo, a.model); _post_analysis(a.repo); _auto_sync_public()
     elif a.status:

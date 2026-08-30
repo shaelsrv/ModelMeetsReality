@@ -208,7 +208,8 @@ def main() -> None:
                   f"{o.get('pressure_state','-'):>9} {o.get('trend','')}")
         return
     if not os.environ.get("OPENROUTER_API_KEY"):
-        raise SystemExit("OPENROUTER_API_KEY not set")
+        if os.environ.get("LLM_BACKEND") != "claude-code":
+            raise SystemExit("OPENROUTER_API_KEY not set (or set LLM_BACKEND=claude-code)")
     monitor(a.model)
 
 

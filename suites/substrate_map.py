@@ -96,8 +96,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo")
     a = ap.parse_args()
-    if not os.environ.get("OPENROUTER_API_KEY"):
-        print("[note] no key"); return
+    if not (os.environ.get("OPENROUTER_API_KEY")
+            or os.environ.get("LLM_BACKEND") == "claude-code"):
+        print("[note] no key and no claude-code backend"); return
     for repo in ([a.repo] if a.repo else REPOS):
         map_repo(repo)
 

@@ -254,7 +254,8 @@ def main() -> None:
         cmd_status(a.status)
         return
     if not os.environ.get("OPENROUTER_API_KEY"):
-        raise SystemExit("OPENROUTER_API_KEY not set")
+        if os.environ.get("LLM_BACKEND") != "claude-code":
+            raise SystemExit("OPENROUTER_API_KEY not set (or set LLM_BACKEND=claude-code)")
     if a.build:
         if not (a.speaker and a.inbox):
             raise SystemExit("--build needs --speaker and --inbox")

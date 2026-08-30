@@ -265,7 +265,8 @@ def main() -> None:
         if not a.repo:
             raise SystemExit("--elicit needs --repo")
         if not os.environ.get("OPENROUTER_API_KEY"):
-            raise SystemExit("OPENROUTER_API_KEY not set")
+            if os.environ.get("LLM_BACKEND") != "claude-code":
+            raise SystemExit("OPENROUTER_API_KEY not set (or set LLM_BACKEND=claude-code)")
         cmd_elicit(a.elicit, a.repo, a.model)
     elif a.observe:
         cmd_observe(a.observe, a.note, a.repo)
