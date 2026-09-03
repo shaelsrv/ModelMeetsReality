@@ -21,9 +21,11 @@ git init && git add -A && git commit -m "main instance"   # version your engine 
 cp .env.example .env
 ```
 
-Your main is private infrastructure. Keeping it (and every model repo) **local and
-private** is the recommended default — honesty is easiest where being wrong costs
-nothing socially. Publishing anything is a separate, later decision.
+Your main is private infrastructure. Keeping it (and every model repo) **self-hosted,
+local and private** is the recommended default — honesty is easiest where being wrong
+costs nothing socially, and your theories about your own world belong on your own
+machine. The friction is real; you will thank yourself for doing it. Publishing
+anything is a separate, later decision.
 
 ## 2. Set it up in a harness (pick one, mix freely)
 
