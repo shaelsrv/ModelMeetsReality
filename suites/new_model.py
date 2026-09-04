@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse, json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from harness.fleet import ROOT
+from harness.fleet import ROOT, MODELS_DIR
 
 MODEL_TMPL = """# {title} — (v1)
 
@@ -49,7 +49,8 @@ def main():
     ap.add_argument("--e-span", default="9,13", help="emergence floors, e.g. 9,13")
     ap.add_argument("--kind", default="forecaster")
     a = ap.parse_args()
-    rdir = ROOT.parent / a.slug
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    rdir = MODELS_DIR / a.slug
     rdir.mkdir(exist_ok=True)
     (rdir / "MODEL.md").write_text(
         MODEL_TMPL.format(title=a.title or a.slug, domain=a.domain), encoding="utf-8")

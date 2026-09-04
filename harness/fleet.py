@@ -17,6 +17,11 @@ _f = ROOT / "fleet.json"
 if _f.exists():
     _cfg = json.load(_f.open(encoding="utf-8"))
 
+# where this instance's model repos live: its own subdirectory if configured,
+# otherwise the shared parent (the original, still-default layout). Two
+# instances under one parent otherwise share a namespace and can collide.
+MODELS_DIR = (ROOT / _cfg["models_dir"]).resolve() if _cfg.get("models_dir") \n    else ROOT.parent
+
 MODEL_REPOS = _cfg.get("models", [])
 CLASSIFIERS = _cfg.get("classifiers", [])
 DECISION_REPO = _cfg.get("decision_repo", "")

@@ -124,9 +124,13 @@ def main() -> None:
 
     from suites.grade_claims import _load_env
     _load_env()
-    if not os.environ.get("OPENROUTER_API_KEY"):
-        raise SystemExit("FATAL: OPENROUTER_API_KEY not set (checked .env). A scheduled "
-                         "loop without a key would silently no-op forever.")
+    # A missing backend is FATAL, never a quiet no-op — but claude-code needs no
+    # API key, so requiring one made the loop unusable on that backend.
+    if not (os.environ.get("OPENROUTER_API_KEY")
+            or os.environ.get("LLM_BACKEND") == "claude-code"):
+        raise SystemExit("FATAL: no LLM backend (checked .env). Set OPENROUTER_API_KEY "
+                         "or LLM_BACKEND=claude-code. A scheduled loop without a "
+                         "backend would silently no-op forever.")
 
     print(f"[grading loop] asof {a.asof}" + (" (DRY)" if a.dry else ""))
     env = {**os.environ, "SKIP_AUTO_SYNC": "1"}
