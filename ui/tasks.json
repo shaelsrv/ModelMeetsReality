@@ -1,0 +1,17 @@
+[
+ {
+  "text": "LAUNCH PLAN REVISION NEEDED: Astra shipped Sept 3 (spike started); Sept 9 T2a tripwire fired - decide launch-in-spike vs wait-for-scrutiny-trough (aligns with Oct 6 graded cohort)",
+  "done": false,
+  "added": "2026-09-03"
+ },
+ {
+  "text": "DECIDER [bs-2026-09-03-1]: If an incident occurs, check whether it was preceded by detectable-but-unread warning signs in available (if degraded) reasoning traces (supports pressure-model's 'blind spot' framing) versus whether it occurred with no  (settles pressure-model vs emergent-tools)",
+  "done": false,
+  "added": "2026-09-03"
+ },
+ {
+  "text": "DECIDER [bs-2026-09-03-1]: Compare which resolves first and independently: if by 2026-09-10 press framing has shifted to safety-incident language with no new incident having occurred, narrative-model wins on its own terms; if instead framing stays (settles narrative-model vs pressure-model)",
+  "done": false,
+  "added": "2026-09-03"
+ }
+]

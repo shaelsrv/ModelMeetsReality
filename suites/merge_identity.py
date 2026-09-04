@@ -159,7 +159,7 @@ def main() -> None:
         _load_env()
         if not os.environ.get("OPENROUTER_API_KEY"):
             if os.environ.get("LLM_BACKEND") != "claude-code":
-            raise SystemExit("OPENROUTER_API_KEY not set (or set LLM_BACKEND=claude-code)")
+                raise SystemExit("OPENROUTER_API_KEY not set (or set LLM_BACKEND=claude-code)")
         cmd_propose(a.model)
     else:
         cmd_show()

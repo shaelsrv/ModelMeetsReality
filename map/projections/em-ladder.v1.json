@@ -1,0 +1,59 @@
+{
+ "id": "em-ladder",
+ "version": 1,
+ "status": "incumbent",
+ "title": "Emergence ladder x aspects",
+ "axes": {
+  "vertical": {
+   "name": "emergence floor",
+   "values": [
+    "E0",
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6",
+    "E7",
+    "E8",
+    "E9",
+    "E10",
+    "E11",
+    "E12",
+    "E13",
+    "E14"
+   ],
+   "meaning": "E0 physics -> E4 chemistry -> E6 organisms -> E8 individual minds -> E9 attention/memes -> E10 institutions -> E11 economy -> E12 states -> E13 epistemes -> E14 civilizational. E8/E9 is the hinge between minds and coordination."
+  },
+  "horizontal": {
+   "name": "aspect",
+   "values": [
+    "matter-energy",
+    "life",
+    "individual-minds",
+    "attention-media",
+    "institutions",
+    "economy-markets",
+    "states-geopolitics",
+    "science-epistemics",
+    "technology-tools",
+    "culture-narrative",
+    "infrastructure-logistics",
+    "civilization-longterm"
+   ]
+  }
+ },
+ "assignments": {},
+ "level_note": "Each assignment carries a level: 0 models the world, 1 models the instance's own models, 2 models the modelling process. Consolidation runs bottom-up and never compresses what a live higher level reads.",
+ "adequacy": {
+  "criteria": [
+   "operability: blind coders place a new model at kappa >= 0.5",
+   "discrimination: cards spread across cells rather than clumping",
+   "joint-carving: map-adjacent models share attribution cross-hits more than distant ones",
+   "gap fertility: named gaps provoke models; inert gaps count against"
+  ],
+  "graded": "none yet - the incumbent holds by default, not by evidence"
+ },
+ "succession_rule": "A challenger projection is ADDED alongside, never edited in. Beat the incumbent on >=2 adequacy criteria over the same cards and default rendering switches. Retired projections are kept so historical cards stay interpretable.",
+ "note": "Starter projection: axes only, no assignments. The mapping model is itself a model — versioned, adequacy-graded, replaceable."
+}

@@ -239,8 +239,8 @@ def main() -> None:
     from suites.grade_claims import _load_env
     _load_env()
     if a.run:
-        if not __import__("os").environ.get("OPENROUTER_API_KEY"):
-            if os.environ.get("LLM_BACKEND") != "claude-code":
+        if not (os.environ.get("OPENROUTER_API_KEY")
+                or os.environ.get("LLM_BACKEND") == "claude-code"):
             raise SystemExit("OPENROUTER_API_KEY not set (or set LLM_BACKEND=claude-code)")
         cmd_run(a.model, a.limit)
     if a.report or not a.run:
