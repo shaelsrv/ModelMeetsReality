@@ -40,6 +40,14 @@ def main():
     ap.add_argument("slug")
     ap.add_argument("--title", default="")
     ap.add_argument("--domain", default="")
+    ap.add_argument("--level", type=int, default=0,
+                    help="0 = models the world · 1 = models the fleet's models · "
+                         "2 = models the modelling process. Consolidation runs "
+                         "bottom-up and never compresses what a live higher level reads.")
+    ap.add_argument("--aspects", default="science-epistemics",
+                    help="comma-separated aspects for the reality map")
+    ap.add_argument("--e-span", default="9,13", help="emergence floors, e.g. 9,13")
+    ap.add_argument("--kind", default="forecaster")
     a = ap.parse_args()
     rdir = ROOT.parent / a.slug
     rdir.mkdir(exist_ok=True)
@@ -51,7 +59,31 @@ def main():
     if a.slug not in cfg["models"]:
         cfg["models"].append(a.slug)
         f.write_text(json.dumps(cfg, indent=1), encoding="utf-8")
+    # Register on the reality map too. A model absent from the projection is
+    # invisible to the map, the mindmap and sleep's consolidation planner — which
+    # is how seven repos silently went unmapped before this was automatic.
+    pdir = ROOT / "map" / "projections"
+    mapped = []
+    if pdir.exists():
+        for pf in sorted(pdir.glob("*.json")):
+            proj = json.load(pf.open(encoding="utf-8"))
+            if a.slug in proj.get("assignments", {}):
+                continue
+            try:
+                lo, hi = (int(x) for x in a.e_span.split(","))
+            except ValueError:
+                lo, hi = 9, 13
+            proj.setdefault("assignments", {})[a.slug] = {
+                "aspects": [s.strip() for s in a.aspects.split(",") if s.strip()],
+                "e_span": [lo, hi], "kind": a.kind, "level": a.level}
+            pf.write_text(json.dumps(proj, ensure_ascii=False, indent=1), encoding="utf-8")
+            mapped.append(pf.stem)
+
     print(f"scaffolded ../{a.slug}/ and registered in fleet.json")
+    if mapped:
+        print(f"  mapped at level {a.level} in: {', '.join(mapped)}")
+    else:
+        print("  [!] no projection found — add this model to the map manually")
     print("next: edit MODEL.md + watch.json, then:")
     print(f"  python -m suites.model_watch --repo {a.slug} --predict")
 
