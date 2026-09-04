@@ -38,6 +38,24 @@ from harness.actors import parse_json  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
+def _models_dir(root):
+    """Where THIS instance's model repos live.
+
+    fleet.json may set models_dir to give the instance a private namespace;
+    without it, models are siblings of the instance (the original layout).
+    Two instances under one parent otherwise read each other's models.
+    """
+    try:
+        import json as _json
+        cfg = _json.load((root / "fleet.json").open(encoding="utf-8"))
+        if cfg.get("models_dir"):
+            return (root / cfg["models_dir"]).resolve()
+    except Exception:
+        pass
+    return root.parent
+
+
+
 def _fleet_repos():
     """Model repos for THIS instance, from fleet.json — never a hardcoded list."""
     try:
@@ -47,7 +65,7 @@ def _fleet_repos():
     except Exception:
         return []
 
-TOOLS = ROOT.parent
+TOOLS = _models_dir(ROOT)
 CDIR = TOOLS / "hunch-tracker" / "candidates"
 HDIR = TOOLS / "hunch-tracker" / "hunches"
 

@@ -38,7 +38,25 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 ROOT = Path(__file__).resolve().parents[1]
-TOOLS = ROOT.parent
+
+def _models_dir(root):
+    """Where THIS instance's model repos live.
+
+    fleet.json may set models_dir to give the instance a private namespace;
+    without it, models are siblings of the instance (the original layout).
+    Two instances under one parent otherwise read each other's models.
+    """
+    try:
+        import json as _json
+        cfg = _json.load((root / "fleet.json").open(encoding="utf-8"))
+        if cfg.get("models_dir"):
+            return (root / cfg["models_dir"]).resolve()
+    except Exception:
+        pass
+    return root.parent
+
+
+TOOLS = _models_dir(ROOT)
 PROJ = ROOT / "map" / "projections" / "em-ladder.v1.json"
 
 # artifact kinds that carry a verdict — pinned unconditionally, at every level

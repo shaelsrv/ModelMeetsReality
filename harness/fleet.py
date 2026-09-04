@@ -20,7 +20,8 @@ if _f.exists():
 # where this instance's model repos live: its own subdirectory if configured,
 # otherwise the shared parent (the original, still-default layout). Two
 # instances under one parent otherwise share a namespace and can collide.
-MODELS_DIR = (ROOT / _cfg["models_dir"]).resolve() if _cfg.get("models_dir") \n    else ROOT.parent
+MODELS_DIR = ((ROOT / _cfg["models_dir"]).resolve()
+              if _cfg.get("models_dir") else ROOT.parent)
 
 MODEL_REPOS = _cfg.get("models", [])
 CLASSIFIERS = _cfg.get("classifiers", [])
