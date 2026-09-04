@@ -201,14 +201,10 @@ def scaffold(code: str, slug_override: str | None) -> None:
             "aspects": ["science-epistemics"] if tier == "advanced" else ["institutions"],
             "e_span": [8, 10], "kind": "forecaster", "level": level}
         pf.write_text(json.dumps(proj, ensure_ascii=False, indent=1), encoding="utf-8")
-    try:
-        subprocess.run(["git", "init", "-q"], cwd=rdir, timeout=30)
-        subprocess.run(["git", "add", "-A"], cwd=rdir, timeout=30)
-        subprocess.run(["git", "-c", "user.name=starter", "-c", "user.email=starter@local",
-                        "commit", "-q", "-m", f"{slug} v1 from starter {code}"],
-                       cwd=rdir, timeout=30)
-    except Exception:
-        pass
+    # Deliberately NO `git init` here. Models under an instance's models/ dir
+    # belong to the instance's own repo; initialising a repo per model makes them
+    # nested repos the parent cannot stage ("does not have a commit checked out").
+    # new_model.py does not do it either — this keeps the two scaffolders consistent.
 
     print(f"[{code}] {title}")
     print(f"  -> {rdir}")
