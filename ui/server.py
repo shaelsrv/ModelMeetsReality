@@ -14,6 +14,7 @@ session. Headless alternative per instruction: `claude -p "<instruction>"`.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -2418,5 +2419,20 @@ if __name__ == "__main__":
         except Exception:
             pass
     INBOX.touch(exist_ok=True)
-    print("Model Cockpit -> http://127.0.0.1:8787  (Ctrl+C to stop)")
-    ThreadingHTTPServer(("127.0.0.1", 8787), H).serve_forever()
+    # Port is configurable so two instances can run their cockpits side by side:
+    # --port, else COCKPIT_PORT, else fleet.json's cockpit_port, else 8787.
+    port = 8787
+    if _cfg.get("cockpit_port"):
+        port = int(_cfg["cockpit_port"])
+    if os.environ.get("COCKPIT_PORT"):
+        port = int(os.environ["COCKPIT_PORT"])
+    if "--port" in sys.argv:
+        port = int(sys.argv[sys.argv.index("--port") + 1])
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", port), H)
+    except OSError as e:
+        raise SystemExit(f"cannot bind 127.0.0.1:{port} ({e}). Another instance may "
+                         f"already be running — pass --port 8788 or set cockpit_port "
+                         f"in fleet.json.")
+    print(f"Model Cockpit ({ROOT.name}) -> http://127.0.0.1:{port}  (Ctrl+C to stop)")
+    srv.serve_forever()
