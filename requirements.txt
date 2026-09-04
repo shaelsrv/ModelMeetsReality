@@ -1,0 +1,19 @@
+# Core: nothing. The suites, the grading loop and the cockpit are stdlib-only,
+# so a bare `python ui/server.py` works on a clean Python 3.10+ install.
+#
+# Optional, per feature. Install only what you use:
+
+# --- semantic memory (suites/memory_index.py, suites/mindmap.py, search in the UI)
+# Runs locally; nothing leaves your machine. ~90MB model on first use.
+# Skip it and everything else still works — search and the mindmap simply stay empty.
+sentence-transformers>=2.2
+
+# --- reading sources in deep research (suites/deep_research.py --source <youtube url>)
+# Only needed to pull transcripts. Article and text sources work without it.
+yt-dlp>=2024.1
+
+# --- LLM access
+# No package needed. Either:
+#   LLM_BACKEND=claude-code   -> uses the `claude` CLI you already have
+#   OPENROUTER_API_KEY=...    -> plain HTTPS via urllib, no SDK
+# Point OPENROUTER_BASE at Ollama or LM Studio to stay fully local.

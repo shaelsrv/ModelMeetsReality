@@ -5,16 +5,38 @@ run them as forecasting instruments against reality, grade them on schedule, and
 version-attributed trajectory of how each model performs. This template ships ALL the
 machinery and NO data: instantiate it, add your own models, accumulate your own record.
 
-## Instantiate
+## Start here (five minutes)
 
-1. Copy this directory to a new name (your instance).
-2. `cp .env.example .env` and set `OPENROUTER_API_KEY`.
-3. Scaffold your first model:
-   `python -m suites.new_model my-model --title "My Model" --domain "what it models"`
-   (creates a sibling directory `../my-model/` with MODEL.md + watch.json skeletons and
-   registers it in `fleet.json` — the single registry every suite reads).
-4. Write the MODEL.md: premises with honest confidence tiers, and FALSIFIABLE
-   consequences — a model that cannot lose is notation, not theory.
+1. Copy this directory to a new name — that copy is your instance.
+2. `cp .env.example .env`. Then either set `OPENROUTER_API_KEY`, or set
+   `LLM_BACKEND=claude-code` to use the `claude` CLI you already have. No API
+   key is needed on that backend.
+3. **Pick a starter model** — you do not need a theory of anything to begin:
+
+       python -m suites.starter --list
+       python -m suites.starter --new B1
+
+   Fourteen starters in three tiers, each phrased as a question you already ask
+   ("I think this is going to happen — am I right?"). See `starters/README.md`.
+   If you take only three: **B1, B3, then I2**.
+4. Open the new `MODEL.md`, make the specifics yours, and register your first
+   claim with a date and a way to score it.
+5. **Open the cockpit** to see everything in one place:
+
+       python ui/server.py            # http://127.0.0.1:8787
+
+   Home shows what is due and what changed; the **+** button (or `c`) registers
+   a claim; Verdict answers "am I actually any good at this?"; search runs over
+   everything the instance knows.
+
+Writing a model from scratch instead: `python -m suites.new_model my-model
+--title "My Model" --domain "what it models" --level 0`. It lands in this
+instance's own `models/` directory when `fleet.json` sets `models_dir`, and is
+registered on the map automatically.
+
+Install nothing to start — the suites and cockpit are stdlib-only. See
+`requirements.txt` for the two optional extras (local semantic search, YouTube
+transcripts).
 
 ## The loop
 
