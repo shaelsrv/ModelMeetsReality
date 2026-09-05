@@ -199,11 +199,24 @@ becomes a different model wearing the same name.
 """, encoding="utf-8")
 
     # 4. register locally
+    #
+    # In the sandbox container the instance's config is not present and /app is
+    # read-only by design — the ONLY writable path is the models mount. So a
+    # failure to register is reported and the import still stands: the model is
+    # on disk, and registering it is a one-line edit the operator makes on the
+    # host. Crashing here would fail the whole import over bookkeeping, after
+    # the safe part already succeeded.
     f = ROOT / "fleet.json"
-    cfg = json.load(f.open(encoding="utf-8")) if f.exists() else {"models": []}
-    if slug not in cfg.setdefault("models", []):
-        cfg["models"].append(slug)
-        f.write_text(json.dumps(cfg, indent=1), encoding="utf-8")
+    try:
+        cfg = json.load(f.open(encoding="utf-8")) if f.exists() else {"models": []}
+        if slug not in cfg.setdefault("models", []):
+            cfg["models"].append(slug)
+            f.write_text(json.dumps(cfg, indent=1), encoding="utf-8")
+        registered = True
+    except OSError:
+        registered = False
+        print(f"  note: could not write fleet.json (read-only, as in the "
+              f"sandbox). Add \"{slug}\" to fleet.json on the host to register it.")
 
     pdir = ROOT / "map" / "projections"
     mapped = []
@@ -227,7 +240,12 @@ becomes a different model wearing the same name.
         print(f"  {moved} origin claim(s) quarantined in imported/ — NOT your record")
     if dropped:
         print(f"  dropped {', '.join(dropped)} (rebuild: python -m suites.memory_index --build)")
-    print(f"  registered in fleet.json" + (f"; mapped in {', '.join(mapped)}" if mapped else ""))
+    if registered:
+        print("  registered in fleet.json"
+              + (f"; mapped in {', '.join(mapped)}" if mapped else ""))
+    else:
+        print("  NOT registered — the model is on disk but this instance does "
+              "not know about it yet")
     print("\n  next: read MODEL.md, then register YOUR first claim from it.")
 
 

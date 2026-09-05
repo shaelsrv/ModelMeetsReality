@@ -9,6 +9,7 @@ fleet.json (repo root):
 }
 """
 import json
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,8 +21,15 @@ if _f.exists():
 # where this instance's model repos live: its own subdirectory if configured,
 # otherwise the shared parent (the original, still-default layout). Two
 # instances under one parent otherwise share a namespace and can collide.
-MODELS_DIR = ((ROOT / _cfg["models_dir"]).resolve()
-              if _cfg.get("models_dir") else ROOT.parent)
+#
+# The MODELS_DIR env override exists for the sandbox container, where the models
+# directory is a MOUNT at a fixed path and the instance's fleet.json is not
+# present. Explicit environment beats a config file that is not there — without
+# it the container resolves to its own /app parent and writes nowhere useful.
+_env_dir = os.environ.get("MODELS_DIR")
+MODELS_DIR = (Path(_env_dir).resolve() if _env_dir
+              else ((ROOT / _cfg["models_dir"]).resolve()
+                    if _cfg.get("models_dir") else ROOT.parent))
 
 MODEL_REPOS = _cfg.get("models", [])
 CLASSIFIERS = _cfg.get("classifiers", [])
