@@ -147,6 +147,13 @@ def _chat_claude_code(model, messages, *, max_tokens, timeout, retries) -> "Chat
     # prompt via STDIN: Windows argv caps ~32k chars and corpora exceed it
     cmd = [_CLAUDE_BIN, "-p", "--model", _claude_model(model),
            "--output-format", "json"]
+    # In the agent sandbox --bare is a security CONTROL, not a preference: its
+    # documented behaviour is that OAuth and the keychain are never read, so
+    # auth is strictly the API key passed in. That is what keeps the operator's
+    # subscription credential out of a container built to handle hostile input.
+    # The image sets CLAUDE_CODE_SIMPLE=1; on the host this is a no-op.
+    if os.environ.get("CLAUDE_CODE_SIMPLE") == "1":
+        cmd.insert(1, "--bare")
     if online:
         cmd += ["--allowedTools", "WebSearch"]
     last = None
