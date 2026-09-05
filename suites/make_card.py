@@ -214,7 +214,25 @@ def build(slug: str, author: str, repo_url: str | None,
     card["record"] = read_record(repo)
     # R5: a record without stated provenance reads as a measurement when it is
     # a self-report. The Garden requires this field and rejects cards lacking it.
+    #
+    # The tier is EARNED, never declared: freeze_check proves from git history
+    # that every claim was committed before its own resolve date, so the author
+    # could not have known the outcome when they wrote the test. An author
+    # cannot assert their way up this ladder, which is the point.
     card["record_provenance"] = "self-graded"
+    try:
+        from suites.freeze_check import check as _freeze
+        fz = _freeze(repo)
+        if not fz.get("error"):
+            card["record_provenance"] = fz["tier"]
+            card["freeze"] = {"frozen": fz["frozen"], "of": fz["n"],
+                              "unfrozen": fz["unfrozen"]}
+            if fz.get("unfrozen"):
+                warn.append(f"{fz['unfrozen']} claim(s) first committed on or "
+                            f"after their own resolve date — the record stays "
+                            f"self-graded until those are removed or amended")
+    except Exception as e:
+        warn.append(f"freeze check unavailable ({e}); provenance stays self-graded")
     return card, warn
 
 
