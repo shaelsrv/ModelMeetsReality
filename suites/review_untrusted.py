@@ -54,9 +54,33 @@ FENCE_NOTE = (
 # "sonnet"/"opus"/"haiku" to that model, while OpenRouter needs a full vendor
 # slug — passing a bare "sonnet" to OpenRouter is a 400.
 def _default_model() -> str:
+    """Pick a model slug the configured endpoint will actually accept.
+
+    Three namespaces, and getting this wrong is a 404 rather than a graceful
+    fallback: the claude-code backend wants a bare family name, OpenRouter wants
+    a vendor-prefixed slug, and a LOCAL server has neither — it serves whatever
+    was pulled. So when the endpoint is local we ASK it what it has rather than
+    guessing a name that cannot exist there.
+    """
     import os
-    return ("sonnet" if os.environ.get("LLM_BACKEND") == "claude-code"
-            else "anthropic/claude-sonnet-4")
+    if os.environ.get("LLM_BACKEND") == "claude-code":
+        return "sonnet"
+    base = os.environ.get("OPENROUTER_BASE", "")
+    if base and any(h in base.lower() for h in
+                    ("localhost", "127.0.0.1", "host.docker.internal")):
+        try:
+            import json as _j
+            import urllib.request as _u
+            with _u.urlopen(f"{base.rstrip('/')}/models", timeout=10) as r:
+                got = _j.loads(r.read().decode())
+            ids = [m.get("id") for m in got.get("data", []) if m.get("id")]
+            if ids:
+                return ids[0]
+        except Exception:
+            pass
+        # Named so the failure says "pull a model" rather than "unknown vendor".
+        return "llama3.2:3b"
+    return "anthropic/claude-sonnet-4"
 
 
 def review(repo: Path, ask: str, model: str = "", cap: int = 8000) -> str:
