@@ -121,29 +121,35 @@ def read_record(repo: Path) -> dict:
 
 
 def map_coords(slug: str) -> dict:
-    """Aspects and E-span from the instance's reality map, if it places this model."""
+    """Aspects and E-span from the instance's reality map, if it places this model.
+
+    The built map is `map/mapcards.json` (a {cards: [...]} document written by
+    reality_map). An earlier version of this guessed at two paths that never
+    existed, so every generated card came out with no coordinates — and
+    validate_card requires them, which meant the generator declared cards
+    listable that the validator the Garden page tells authors to run rejected.
+    """
+    f = ROOT / "map" / "mapcards.json"
+    if not f.exists():
+        return {}
+    try:
+        d = json.load(f.open(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
     out = {}
-    for rel in ("map/projections/em-ladder.v1.json", "map/assignments.json"):
-        f = ROOT / rel
-        if not f.exists():
+    for a in (d.get("cards") or []) if isinstance(d, dict) else []:
+        if not isinstance(a, dict) or a.get("model") != slug:
             continue
-        try:
-            d = json.load(f.open(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        entries = d.get("assignments", d) if isinstance(d, dict) else d
-        rows = entries.values() if isinstance(entries, dict) else entries
-        for a in rows if isinstance(rows, (list, tuple)) else []:
-            if not isinstance(a, dict) or a.get("model") != slug:
-                continue
-            if a.get("aspects"):
-                out["aspects"] = a["aspects"]
-            elif a.get("aspect"):
-                out["aspects"] = [a["aspect"]]
-            if a.get("e_span"):
-                out["e_span"] = a["e_span"]
-            elif a.get("e") is not None:
-                out["e_span"] = [a["e"], a["e"]]
+        if a.get("aspects"):
+            out["aspects"] = a["aspects"]
+        elif a.get("aspect"):
+            out["aspects"] = [a["aspect"]]
+        if a.get("e_span"):
+            out["e_span"] = a["e_span"]
+        elif a.get("e") is not None:
+            out["e_span"] = [a["e"], a["e"]]
+        if a.get("level") is not None:
+            out["level"] = a["level"]
     return out
 
 
@@ -175,14 +181,18 @@ def build(slug: str, author: str, repo_url: str | None,
         warn.append("could not read a kind from MODEL.md's '**The kind:**' line")
         card["kind"] = "forecaster"
 
-    # level: declared in fleet.json if the instance tracks it
+    # Coordinates from the built map first, then let fleet.json's declared level
+    # win if it has one — the fleet config is where a level is asserted, the map
+    # only reflects what was last built from it.
+    card.update(map_coords(slug))
     try:
         cfg = json.load((ROOT / "fleet.json").open(encoding="utf-8"))
-        card["level"] = int((cfg.get("levels") or {}).get(slug, 0))
+        levels = cfg.get("levels") or {}
+        if slug in levels:
+            card["level"] = int(levels[slug])
     except (OSError, ValueError, TypeError):
-        card["level"] = 0
-
-    card.update(map_coords(slug))
+        pass
+    card.setdefault("level", 0)
     card.setdefault("aspects", [])
     if not card["aspects"]:
         warn.append("no aspects — the model is not placed on the reality map, "
