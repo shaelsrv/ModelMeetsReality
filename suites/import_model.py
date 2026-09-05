@@ -42,6 +42,60 @@ LEDGERS = ("predict/ledger.json", "predict/live_ledger.json",
 # computed against the origin's corpus — meaningless here, rebuilt on demand
 LOCAL_ONLY = ("index.jsonl",)
 
+# --- What may land on YOUR DISK from a stranger's repo -------------------
+#
+# Importing used to be `copytree(ignore=[".git", "__pycache__"])`, which is a
+# block-list: everything not named was copied. Demonstrated consequences of
+# that, from a constructed hostile repo — every one of these landed:
+#
+#   setup.py              runs on `pip install .`
+#   run.sh                runs if anyone executes it
+#   model.pkl             arbitrary code on unpickle
+#   .vscode/tasks.json    with runOn:folderOpen, executes when the folder is
+#                         OPENED IN THE EDITOR — no user action beyond that
+#   .git-hooks/pre-commit runs on commit
+#   notes.md.exe          double-extension, looks like a document
+#   .env                  read by tooling, and a place to hide values
+#
+# A model is a THEORY. It is markdown, a card, a licence and a ledger. Nothing
+# in that list needs to execute, so the copy is now an ALLOW-LIST: an extension
+# not named here does not reach the disk at all. A block-list fails open on
+# whatever the attacker thought of that we did not.
+SAFE_SUFFIX = {".md", ".json", ".jsonl", ".txt", ".yaml", ".yml", ".csv"}
+SAFE_NAMES = {"LICENSE", "LICENSE-CODE", "LICENSE-CONTENT", "NOTICE",
+              "CITATION.cff", ".gitignore", ".gitattributes"}
+# Directories that carry execution semantics regardless of what is inside them.
+UNSAFE_DIRS = {".git", ".github", ".vscode", ".idea", ".devcontainer",
+               ".git-hooks", "__pycache__", "node_modules", ".venv", "venv",
+               "bin", "scripts"}
+
+
+def _safe_copy(src: Path, dst: Path) -> list:
+    """Copy a model repo, allow-list only. Returns what was refused."""
+    refused = []
+    for p in sorted(src.rglob("*")):
+        rel = p.relative_to(src)
+        if any(part in UNSAFE_DIRS for part in rel.parts):
+            if p.is_file():
+                refused.append(str(rel))
+            continue
+        if not p.is_file():
+            continue
+        # A double extension ("notes.md.exe") passes a naive suffix check on the
+        # wrong half, so the WHOLE name is checked for an executable segment.
+        parts = p.name.lower().split(".")
+        if len(parts) > 2 and any(f".{s}" not in SAFE_SUFFIX for s in parts[1:-1]):
+            refused.append(str(rel))
+            continue
+        if p.name in SAFE_NAMES or p.suffix.lower() in SAFE_SUFFIX:
+            out = dst / rel
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(p, out)
+        else:
+            refused.append(str(rel))
+    dst.mkdir(parents=True, exist_ok=True)
+    return refused
+
 
 def inspect(src: Path) -> dict:
     mm = src / "MODEL.md"
@@ -81,7 +135,16 @@ def do_import(src: Path, slug: str | None, keep_claims: bool,
         raise SystemExit(f"{dst} already exists — pass --slug to rename")
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(src, dst, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+    refused = _safe_copy(src, dst)
+    if refused:
+        # Never silent. A model that shipped executables is telling you
+        # something about itself, and the person importing should see it.
+        print(f"  !! refused {len(refused)} file(s) — a model is markdown, a "
+              f"card, a licence and a ledger; nothing in it needs to execute:")
+        for r in refused[:12]:
+            print(f"       {r}")
+        if len(refused) > 12:
+            print(f"       … and {len(refused) - 12} more")
 
     # 1. embeddings from another corpus are not yours
     dropped = []
@@ -188,6 +251,31 @@ def main() -> None:
         print(f"  claims         : {i['claims']} ({i['graded']} graded) — would be quarantined")
         print(f"  carries index  : {'yes — will be dropped' if i['carries_index'] else 'no'}")
         print(f"  size           : {i['files']} files, {i['bytes']//1024} KB")
+        # What would actually reach the disk. Two threat surfaces, not one:
+        # prose aimed at the reader's ASSISTANT, and files aimed at their
+        # MACHINE. This is the second.
+        _p = Path(a.inspect)
+        exec_like = []
+        for f in sorted(_p.rglob("*")):
+            if not f.is_file():
+                continue
+            rel = f.relative_to(_p)
+            if any(part in UNSAFE_DIRS for part in rel.parts) and ".git" not in rel.parts[:1]:
+                exec_like.append(str(rel))
+            elif not (f.name in SAFE_NAMES or f.suffix.lower() in SAFE_SUFFIX):
+                exec_like.append(str(rel))
+        if exec_like:
+            print(f"  executable/other: {len(exec_like)} file(s) that will NOT "
+                  f"be copied:")
+            for r in exec_like[:8]:
+                print(f"       {r}")
+            if len(exec_like) > 8:
+                print(f"       … and {len(exec_like) - 8} more")
+            print("     A model is a theory. Files that can run are refused at "
+                  "import — but their")
+            print("     presence tells you something about this repo.")
+        else:
+            print("  executable      : none — only documents, cards and ledgers")
         # A stranger's model is exactly the case the injection tripwire exists
         # for, and inspect is where a person decides whether to trust the repo
         # at all — so it is reported here, before import.
