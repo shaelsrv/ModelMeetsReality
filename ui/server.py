@@ -445,6 +445,7 @@ kbd { font-family:"IBM Plex Mono",monospace; background:var(--panel); border:1px
 <nav>
   <button data-t="home" class="on">Home</button>
   <button data-t="verdict">Verdict</button>
+  <button data-t="garden">Garden</button>
   <button data-t="models">Models</button>
   <button data-t="events">Events</button>
   <button data-t="brainstorm">Brainstorm</button>
@@ -500,6 +501,10 @@ kbd { font-family:"IBM Plex Mono",monospace; background:var(--panel); border:1px
 
 <section id="home" class="on">
   <div id="homebody"><p class="muted">loading…</p></div>
+</section>
+
+<section id="garden">
+  <div id="gardenbody"></div>
 </section>
 
 <section id="verdict">
@@ -648,7 +653,7 @@ kbd { font-family:"IBM Plex Mono",monospace; background:var(--panel); border:1px
 const $ = s => document.querySelector(s);
 /* Tab state lives in the URL hash, so refresh / back / forward / bookmarks all
    land where you were instead of dumping you on Home. */
-const TABS = ['home','verdict','models','events','brainstorm','entities','map','tasks',
+const TABS = ['home','verdict','garden','models','events','brainstorm','entities','map','tasks',
               'assess','glossary','connect','searchres'];
 function showTab(id, push){
   if (!TABS.includes(id)) id = 'home';
@@ -665,7 +670,7 @@ document.querySelectorAll('nav button').forEach(b =>
   b.onclick = () => showTab(b.dataset.t, true));
 
 /* keyboard: / focuses search, g+<key> jumps, ? lists shortcuts, Esc leaves a field */
-const GOTO = {h:'home', v:'verdict', m:'models', e:'events', b:'brainstorm', n:'entities',
+const GOTO = {h:'home', v:'verdict', r:'garden', m:'models', e:'events', b:'brainstorm', n:'entities',
               p:'map', t:'tasks', a:'assess', l:'glossary', c:'connect'};
 let gPending = false;
 document.addEventListener('keydown', ev => {
@@ -683,6 +688,24 @@ document.addEventListener('keydown', ev => {
   if (gPending && GOTO[ev.key]){ gPending = false; showTab(GOTO[ev.key], true); }
 });
 /* ---- VERDICT: "am I actually any good at this?" answered without flattery ---- */
+
+async function loadGardenPage(){
+  try {
+    const html = await (await fetch('/api/garden-page')).text();
+    document.getElementById('gardenbody').innerHTML = html;
+    // the fragment carries its own <script>; re-execute it
+    document.getElementById('gardenbody').querySelectorAll('script').forEach(s => {
+      const n = document.createElement('script');
+      n.textContent = s.textContent;
+      document.body.appendChild(n);
+    });
+    if (typeof loadGarden === 'function') loadGarden();
+  } catch(e){
+    document.getElementById('gardenbody').innerHTML =
+      '<p class="muted">garden unavailable</p>';
+  }
+}
+
 async function loadVerdict(){
   let d;
   try { d = await (await fetch('/api/verdict')).json(); }
@@ -1449,7 +1472,7 @@ async function loadGloss(){
   relinkAll();
   if (location.hash.startsWith('#g-')) setTimeout(()=>openGloss(location.hash.slice(1)), 250);
 }
-loadHome(); loadVerdict(); loadModels(); loadTasks(); loadAssess(); loadEvents(); loadGloss(); loadBrainstorm(); loadMap();
+loadGardenPage(); loadHome(); loadVerdict(); loadModels(); loadTasks(); loadAssess(); loadEvents(); loadGloss(); loadBrainstorm(); loadMap();
 loadEntities(); loadMindmap();
 // live delivery: poll for queued work flipping to results (skip when tab hidden)
 let pollBusy = false;
@@ -2075,6 +2098,28 @@ class H(BaseHTTPRequestHandler):
                 "honest": ("No live claim has been graded yet. Everything below is "
                            "backtest, which cannot tell you whether YOU are any good — "
                            "only that the machinery runs.") if live == 0 else ""})
+        if p == "/api/garden-page":
+            try:
+                sys.path.insert(0, str(UI))
+                from garden import GARDEN_PAGE
+                return self._send(200, GARDEN_PAGE.encode(), "text/html")
+            except Exception as e:
+                return self._send(500, {"error": str(e)[:200]})
+        if p == "/api/garden":
+            # Local index by default so the page works offline; a published
+            # garden/index.json (submitted cards) takes precedence when present.
+            pub = ROOT / "garden" / "index.json"
+            if pub.exists():
+                try:
+                    return self._send(200, json.load(pub.open(encoding="utf-8")))
+                except (OSError, ValueError):
+                    pass
+            try:
+                sys.path.insert(0, str(UI))
+                from garden import local_index
+                return self._send(200, local_index(TOOLS, _cfg))
+            except Exception as e:
+                return self._send(500, {"error": str(e)[:200]})
         if p == "/api/home":
             import subprocess as _sp
             today = date.today().isoformat()
