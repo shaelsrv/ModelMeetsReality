@@ -157,8 +157,11 @@ function gRender(){
   document.getElementById('g-list').innerHTML = (shown.length ? shown.map(m => {
     const d = m.derived || {}, dec = m.declared || {};
     const ev = d.evidence || m.evidence || 'untested';
-    const evColor = {proven:'var(--accd)', mixed:'var(--base)', failing:'var(--miss)',
-                     early:'var(--sub)', untested:'var(--sub)'}[ev] || 'var(--sub)';
+    // STAGE, not verdict — and deliberately one colour for every stage. Colouring
+    // "proven" green and "failing" red made the palette a ranking: the eye sorts
+    // the list before reading a word of it, which is exactly the signal R1 keeps
+    // out of the sort order (earned-standing P4 — layout is a ranking too).
+    const evColor = 'var(--sub)';
     const rec = m.record || {};
     const chips = [
       m.kind, 'L'+(m.level ?? 0), dec.scope, dec.inputs, dec.effort,

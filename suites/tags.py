@@ -65,17 +65,26 @@ def derive(repo: Path) -> dict:
     hits = [r for r in graded if r.get("status") in ("hit", "partial")]
     out = {}
 
-    # --- "is it any good?" — the tier says graded; this says whether it WON
+    # --- "how far along is it?" — HOW MUCH has resolved, never how well.
+    #
+    # This used to emit a quality verdict ("proven"/"mixed"/"failing") plus a
+    # hit_rate, both computed by collapsing every claim the model holds into one
+    # number regardless of domain or of who resolved it. That is a blended score
+    # with no holder: it merges a claim nobody checked with one an outside party
+    # resolved, and a reader cannot undo the merge. See earned-standing P1.
+    #
+    # A quality signal may be displayed only per (domain, provenance) and only
+    # where claims were independently resolved — which no repo supports yet. So
+    # what is emitted here is a STAGE, which says how much evidence exists
+    # without ruling on it.
     if not graded:
         out["evidence"] = "untested"
     elif len(graded) < 5:
         out["evidence"] = "early"
     else:
-        rate = len(hits) / len(graded)
-        out["evidence"] = ("proven" if rate >= 0.6 else
-                           "mixed" if rate >= 0.4 else "failing")
-        out["hit_rate"] = round(rate, 2)
+        out["evidence"] = "graded"
     out["graded_n"] = len(graded)
+    out["hits_n"] = len(hits)   # a count, not a rate — rates blend, counts do not
 
     # --- "how long until I know?" — from the actual claim horizons
     spans = []
