@@ -94,8 +94,21 @@ def main():
         print(f"  mapped at level {a.level} in: {', '.join(mapped)}")
     else:
         print("  [!] no projection found — add this model to the map manually")
-    print("next: edit MODEL.md + watch.json, then:")
-    print(f"  python -m suites.model_watch --repo {a.slug} --predict")
+
+    # A model people cannot RUN is a paper. USE.md and TASKS.md are generated
+    # from MODEL.md, so they are written after the theory is, not now — but the
+    # scaffold says so rather than leaving the author to discover the convention
+    # by reading someone else's repo.
+    print("\nnext:")
+    print("  1. write MODEL.md — premises, falsifiable consequences, deletion clause")
+    print("  2. python -m suites.make_card  --model {0} --author <handle>".format(a.slug))
+    print("  3. python -m suites.make_use   --model {0} --author <handle>"
+          "   # one-prompt install".format(a.slug))
+    print("  4. python -m suites.make_tasks --model {0} --author <handle>"
+          "   # scheduled runs".format(a.slug))
+    print("  5. python -m suites.legitimacy_audit --model {0}"
+          "        # catches what is missing".format(a.slug))
+    print(f"\n  then: python -m suites.model_watch --repo {a.slug} --predict")
 
 if __name__ == "__main__":
     main()

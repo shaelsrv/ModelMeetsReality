@@ -17,14 +17,23 @@ in places, and v2 will fix those in the open rather than by silent drift.
 
 ## Strongly recommended
 
-    USE.md            how to RUN the model in ChatGPT / Claude / Gemini
+    USE.md            how to RUN the model once, in ChatGPT / Claude / Gemini
+    TASKS.md          how to run it on a SCHEDULE (or pasted from a reminder)
 
 MODEL.md is the theory; USE.md is how someone without Python, a local model, or
 any tooling actually uses it. A reader pastes one line —
 `https://github.com/<owner>/<model>  Help me use this` — and the assistant reads
 the repo and becomes the model.
 
-Generate it with `python -m suites.make_use --model <slug> --author <handle>`.
+Generate both:
+
+    python -m suites.make_use   --model <slug> --author <handle>
+    python -m suites.make_tasks --model <slug> --author <handle>
+
+`publish_model` regenerates them automatically, and `legitimacy_audit` flags a
+repo missing either — so the convention holds without anyone remembering it.
+Both are derived from MODEL.md, which means a stale copy advertises a model that
+no longer matches its own instructions.
 Verified working in a live ChatGPT session: the assistant explained itself,
 flagged the model's own low-confidence premise unprompted, labelled its guesses,
 and produced a dated falsifiable prediction rather than a summary.

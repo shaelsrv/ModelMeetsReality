@@ -167,6 +167,27 @@ def audit(repo: Path, slug: str) -> list[tuple[str, str, str]]:
                         "MODEL.md still contains scaffold placeholder text"))
             break
 
+    # --- UNRUNNABLE: theory with no way to use it.
+    #
+    # MODEL.md is what the model IS. USE.md is how someone without Python, a
+    # local model, or any tooling actually runs it, and TASKS.md is how they run
+    # it over time. A repo with only the theory is a paper: an assistant handed
+    # it can summarise it and little else, which excludes exactly the audience
+    # the Garden says it wants.
+    #
+    # FLAG rather than BLOCK: a model without these is incomplete, not
+    # dishonest, and blocking would exclude someone who wrote a good theory but
+    # did not package it. Both are generated — `make_use`, `make_tasks` — so the
+    # fix is one command, and the flag names it.
+    if not (repo / "USE.md").exists():
+        out.append(("FLAG", "UNRUNNABLE",
+                    "no USE.md — a reader without tooling cannot run this. "
+                    f"Fix: python -m suites.make_use --model {slug} --author <handle>"))
+    if not (repo / "TASKS.md").exists():
+        out.append(("FLAG", "UNRUNNABLE",
+                    "no TASKS.md — the model cannot be run on a schedule. "
+                    f"Fix: python -m suites.make_tasks --model {slug} --author <handle>"))
+
     # --- OVERCLAIM: asserted findings with nothing graded behind them.
     graded = 0
     for rel in ("predict/ledger.json", "predict/live_ledger.json",

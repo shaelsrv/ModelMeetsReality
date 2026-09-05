@@ -99,6 +99,22 @@ def publish(slug: str, owner: str, private: bool, dry: bool) -> dict:
     if not card_f.exists():
         return {"model": slug, "skipped": "no model.json — run make_card first"}
 
+    # Regenerate the runnable half before publishing. Both are DERIVED from
+    # MODEL.md, so a repo that ships them stale is advertising a model that no
+    # longer matches its own instructions — and a repo missing them entirely is
+    # a paper rather than an instrument. Generating here means the convention
+    # holds for every model without anyone remembering two extra commands.
+    if not dry:
+        for mod, fname in (("make_use", "USE.md"), ("make_tasks", "TASKS.md")):
+            try:
+                gen = __import__(f"suites.{mod}", fromlist=["build"])
+                doc, _ = gen.build(slug, owner)
+                (src / fname).write_text(doc, encoding="utf-8")
+            except Exception as e:
+                # Never block publication on this — a model with a stale USE.md
+                # is still worth publishing, and the audit flags what is missing.
+                print(f"      note: could not regenerate {fname} ({e})")
+
     # Publication is the irreversible step, so the legitimacy gate runs HERE
     # rather than only at launch. The other gates do not catch this: make_card
     # called unwritten scaffolds "listable" and validate_card passed them,

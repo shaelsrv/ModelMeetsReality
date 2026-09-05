@@ -211,6 +211,14 @@ def build(slug: str, author: str, repo_url: str | None,
     except Exception as e:
         warn.append(f"could not compute tags: {e}")
 
+    # Does this model ship a one-prompt install? It changes what a reader with
+    # no tooling can do with it, so the card says so rather than making them
+    # clone to find out.
+    card["use"] = (repo / "USE.md").exists()
+    if not card["use"]:
+        warn.append("no USE.md — a reader without Python or a local model "
+                    "cannot run this; generate with suites.make_use")
+
     card["record"] = read_record(repo)
     # R5: a record without stated provenance reads as a measurement when it is
     # a self-report. The Garden requires this field and rejects cards lacking it.
