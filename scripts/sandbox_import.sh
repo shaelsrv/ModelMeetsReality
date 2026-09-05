@@ -64,6 +64,8 @@ echo "    writable path  : $MODELS"
 echo "    network        : OFF — an import needs none, so exfiltration cannot"
 echo "                     leave even if every other control fails"
 echo "    user           : non-root"
+echo "    no LLM         : import, audit and card generation need no model, so"
+echo "                     no claude/API credential is mounted here"
 echo
 
 # --network=none is the single highest-value line here. It is in the wrapper

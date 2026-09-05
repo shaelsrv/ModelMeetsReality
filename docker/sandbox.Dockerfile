@@ -22,6 +22,26 @@
 # assistant is outside every container — the FENCE is the control there. And a
 # user who clones a Garden repo with plain `git clone`, outside this tooling,
 # gets no sandbox at all, which is why the card's payload disclosure exists.
+#
+# ## NO CLAUDE CODE IN HERE, AND THAT IS THE POINT
+#
+# There is no `claude` CLI in this image and no credentials, deliberately.
+# Every suite that touches stranger content — import_model, legitimacy_audit,
+# freeze_check, make_card, make_use, make_tasks, validate_card — is LLM-FREE.
+# They read files, compare git timestamps and copy documents. None of them needs
+# a model, so the sandbox does not need one either.
+#
+# That is what makes `--network=none` affordable. Putting Claude Code in here
+# would require the network back (it calls an API), a credential mounted into a
+# container built to handle hostile input, and a tool with file and shell access
+# sitting in the same filesystem as the untrusted repo. Each of those trades
+# away the containment this exists to provide.
+#
+# The LLM-using suites — brainstorm, model_watch, grading_loop, deep_research —
+# run on the HOST, against content you already decided to trust, after the
+# import refused the executables and the audit reported what it found. That
+# ordering is the design: contain the untrusted step, then reason about what
+# survived it.
 
 FROM python:3.12-slim
 
