@@ -32,7 +32,8 @@ GARDEN_PAGE = """
   is judged by its own grading, never by a reviewer's opinion.</p>
 
   <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:.8rem 0">
-    <input id="g-q" placeholder="search name, mechanism, author…" oninput="gRender()"
+    <input id="g-q" placeholder="search name, mechanism, author…"
+      oninput="G_LIMIT = 60; gRender()"
       style="flex:1;min-width:14rem;background:var(--bg);border:1px solid var(--line);
              border-radius:999px;color:var(--ink);padding:.5rem .9rem;font:inherit;font-size:.88rem">
   </div>
@@ -66,6 +67,7 @@ const G_FACETS = [
   ["scope", "scope"], ["sensitivity", "sensitivity"],
 ];
 const G_SEL = {};
+let G_LIMIT = 60;          // how many cards are painted; grows via "show more"
 
 async function loadGarden(){
   try {
@@ -101,6 +103,7 @@ function gFacets(){
 
 function gPick(key, val){
   G_SEL[key] = (G_SEL[key] === val) ? null : val;
+  G_LIMIT = 60;            // a new filter starts a fresh page, not an inherited one
   gFacets(); gRender();
 }
 
@@ -112,9 +115,15 @@ function gRender(){
     if (!q) return true;
     return [m.model, m.title, m.mechanism, m.author].join(' ').toLowerCase().includes(q);
   });
+  // The index scales; the DOM does not. 5000 cards is ~4MB of DOM and janks the
+  // page, so paint a page at a time regardless of how many models exist.
+  const PAGE = 60;
+  const shown = rows.slice(0, G_LIMIT);
   document.getElementById('g-count').textContent =
-    `${rows.length} of ${GARDEN.length} models`;
-  document.getElementById('g-list').innerHTML = rows.length ? rows.map(m => {
+    rows.length > shown.length
+      ? `showing ${shown.length} of ${rows.length} matches (${GARDEN.length} models total)`
+      : `${rows.length} of ${GARDEN.length} models`;
+  document.getElementById('g-list').innerHTML = (shown.length ? shown.map(m => {
     const d = m.derived || {}, dec = m.declared || {};
     const ev = d.evidence || m.evidence || 'untested';
     const evColor = {proven:'var(--accd)', mixed:'var(--base)', failing:'var(--miss)',
@@ -149,8 +158,14 @@ function gRender(){
         <a href="${esc(m.repo)}" target="_blank" rel="noopener"
            style="font-size:.78rem;color:var(--accd)">repo &rarr;</a>` : ''}
     </div>`;
-  }).join('') : '<p class="muted">nothing matches those filters.</p>';
+  }).join('') : '<p class="muted">nothing matches those filters.</p>')
+    + (rows.length > shown.length
+        ? `<button class="act" style="margin-top:.6rem" onclick="gMore(${PAGE})">
+             show ${Math.min(PAGE, rows.length - shown.length)} more</button>`
+        : '');
 }
+
+function gMore(n){ G_LIMIT += n; gRender(); }
 </script>
 """
 
