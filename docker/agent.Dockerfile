@@ -66,7 +66,7 @@ USER agent
 ENV PYTHONPATH=/app \
     PYTHONDONTWRITEBYTECODE=1 \
     MODELS_DIR=/models \
-    LLM_BACKEND=claude-code \
+    LLM_BACKEND=openrouter \
     CLAUDE_CODE_SIMPLE=1 \
     HOME=/home/agent
 

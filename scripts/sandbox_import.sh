@@ -13,6 +13,11 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Convert $HERE first: a POSIX "/f/tools/..." handed to Windows Python becomes
+# the nonsense path "	ools", which the daemon then rejects.
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) HERE="$(cd "$HERE" && pwd -W)" ;;
+esac
 SRC="${1:-}"
 shift || true
 CONFIRM="${1:-}"
@@ -26,6 +31,16 @@ if [ ! -d "$SRC" ]; then
   exit 1
 fi
 SRC="$(cd "$SRC" && pwd)"
+# Git Bash reports POSIX paths ("/c/Users/…") which the Docker daemon rejects as
+# non-absolute; `pwd -W` gives the Windows form it accepts.
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    SRC="$(cd "$SRC" && pwd -W)"
+    # Git Bash rewrites POSIX-looking arguments into Windows paths, which mangles
+    # the CONTAINER-side half of a -v mount ("/import" becomes a drive path).
+    # MSYS_NO_PATHCONV=1 turns that off for these calls.
+    export MSYS_NO_PATHCONV=1 ;;
+esac
 
 # The instance's models dir — the ONLY thing this is allowed to write to.
 MODELS="$(python -c "
@@ -35,6 +50,13 @@ r = Path('$HERE')
 cfg = json.load((r/'fleet.json').open(encoding='utf-8')) if (r/'fleet.json').exists() else {}
 print((r / cfg['models_dir']).resolve() if cfg.get('models_dir') else r.parent)
 ")"
+# The models dir needs the same Windows form as the source path, and Python
+# already prints it that way on Windows — but a POSIX $HERE feeds it a POSIX
+# root. Normalise both to what the daemon accepts.
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    MODELS="$(cd "$MODELS" 2>/dev/null && pwd -W || echo "$MODELS")" ;;
+esac
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "!! docker not found — FALLING BACK to host import."

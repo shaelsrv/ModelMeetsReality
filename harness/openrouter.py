@@ -24,6 +24,22 @@ from typing import Any, Optional
 BASE = os.environ.get("OPENROUTER_BASE", "https://openrouter.ai/api/v1")
 
 
+def _is_local(base: str) -> bool:
+    """Is this endpoint on the machine (or the docker host), not the internet?
+
+    Decides whether an API key is required. Local servers — Ollama on 11434,
+    LM Studio on 1234, llama.cpp — accept requests with no credential, so
+    demanding one only prevents fully-offline operation.
+
+    `host.docker.internal` counts: from inside a container that name resolves to
+    the host, which is exactly how a sandboxed run reaches a local model without
+    the container itself having internet.
+    """
+    b = base.lower()
+    return any(h in b for h in ("localhost", "127.0.0.1", "0.0.0.0", "[::1]",
+                                "host.docker.internal", "ollama", "lmstudio"))
+
+
 @dataclass
 class ChatResult:
     text: str
@@ -46,9 +62,17 @@ def chat(
     """Send a chat completion to one model via OpenRouter. Returns a ChatResult;
     never raises for an API error — it carries `error` so a benchmark run can score a
     model as 'failed to respond' rather than crashing the whole sweep."""
+    # A LOCAL server (Ollama, LM Studio, llama.cpp) needs no key, and demanding
+    # one made fully-local operation impossible: the fleet refused to start
+    # before it ever reached the endpoint. So a key is required only when
+    # talking to a REMOTE host — pointing OPENROUTER_BASE at localhost is itself
+    # the statement that no credential is involved.
     key = os.environ.get("OPENROUTER_API_KEY")
-    if not key:
-        return ChatResult(text="", model=model, error="OPENROUTER_API_KEY not set")
+    if not key and not _is_local(BASE):
+        return ChatResult(
+            text="", model=model,
+            error="OPENROUTER_API_KEY not set (not needed for a local "
+                  "OPENROUTER_BASE such as http://localhost:11434/v1)")
 
     body: dict[str, Any] = {
         "model": model,
@@ -60,13 +84,15 @@ def chat(
         body["tools"] = tools
 
     data = json.dumps(body).encode()
-    headers = {
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json",
-        # OpenRouter asks for these for attribution/ranking; harmless if unset.
-        "HTTP-Referer": "https://example.com",
-        "X-Title": "Copilot Reality Benchmark",
-    }
+    headers = {"Content-Type": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    if not _is_local(BASE):
+        # OpenRouter asks for these for attribution/ranking. They are not sent
+        # to a local server: a self-hosted endpoint has no use for them, and a
+        # fully-offline setup should not be quietly announcing a referer.
+        headers["HTTP-Referer"] = "https://example.com"
+        headers["X-Title"] = "Copilot Reality Benchmark"
 
     last_err = None
     for attempt in range(retries):
