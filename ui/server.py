@@ -57,8 +57,20 @@ def save_events(evs):
 
 def _repos():
     """This instance's model repos: fleet.json first, then anything with a
-    MODEL.md in the models directory (so a hand-added repo is not invisible)."""
-    named = list(_cfg.get("models", [])) + list(_cfg.get("classifiers", []))
+    MODEL.md in the models directory (so a hand-added repo is not invisible).
+
+    Re-read on every access. Caching this at import time made a model imported
+    while the cockpit was running invisible until restart — which is exactly the
+    moment someone tries a shared model and concludes the import failed.
+    """
+    cfg = _cfg
+    f = ROOT / "fleet.json"
+    if f.exists():
+        try:
+            cfg = json.load(f.open(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+    named = list(cfg.get("models", [])) + list(cfg.get("classifiers", []))
     found = sorted(d.name for d in TOOLS.iterdir()
                    if d.is_dir() and (d / "MODEL.md").exists()) if TOOLS.exists() else []
     seen, out = set(), []
@@ -69,7 +81,26 @@ def _repos():
     return out
 
 
-REPOS = _repos()
+class _LiveRepos(list):
+    """Behaves like the list the handlers already iterate, but always current."""
+
+    def _now(self):
+        return _repos()
+
+    def __iter__(self):
+        return iter(self._now())
+
+    def __len__(self):
+        return len(self._now())
+
+    def __contains__(self, item):
+        return item in self._now()
+
+    def __getitem__(self, i):
+        return self._now()[i]
+
+
+REPOS = _LiveRepos()
 
 
 def ledger_counts(repo: Path):
