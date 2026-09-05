@@ -69,6 +69,50 @@ OVERCLAIM_PAT = re.compile(
     r"|(?:the|our) finding(?:s)? (?:is|are|show)"
     r"|confirmed that)\b")
 
+# --- Prompt-injection tripwires -----------------------------------------
+#
+# HONEST FRAMING, because overstating this would be worse than not having it:
+# these catch LAZY attacks. This template is public, so every pattern below
+# ships to the adversary as a spec sheet — anyone who reads it can paraphrase
+# past it in a minute. The real control is the FENCE in make_use/make_tasks,
+# which strips the authority an injection needs rather than trying to recognise
+# one. This is a tripwire, not a wall.
+#
+# Chosen for near-zero false positives, because a check that cries wolf gets
+# muted and a muted check protects nobody — the lesson the PRIVATE check taught
+# earlier.
+INJECT_BLOCK = [
+    # No legitimate MODEL.md contains invisible characters. Zero-width and
+    # bidi controls exist in this context only to hide text from a human
+    # reviewer while an assistant still reads it.
+    (re.compile(r"[​-‏‪-‮⁠-⁤﻿]"),
+     "invisible/bidi control characters — text hidden from human review"),
+    (re.compile(r"[\U000e0000-\U000e007f]"),
+     "Unicode tag characters — a known invisible-payload channel"),
+    # A premise never asks the reader's assistant to conceal something.
+    (re.compile(r"(?i)\bdo not (?:tell|mention|reveal|inform|show)\b[^.]{0,40}"
+                r"\b(?:the )?(?:user|human|operator)\b"),
+     "instructs the assistant to hide something from the user"),
+    (re.compile(r"(?i)\bignore (?:all |any )?(?:previous|prior|above|earlier)\b"
+                r"[^.]{0,30}\b(?:instruction|prompt|rule|direction)"),
+     "'ignore previous instructions' — addressed at the reader's assistant"),
+    (re.compile(r"(?i)\b(?:unrestricted|developer|jailbreak|god)\s*mode\b"),
+     "claims a special unrestricted mode"),
+]
+INJECT_FLAG = [
+    # Markdown that fetches on render is an exfiltration beacon: the reader
+    # never clicks anything.
+    (re.compile(r"!\[[^\]]*\]\(\s*https?://[^)]*[?&][^)]*="),
+     "auto-fetching image with a query string — possible exfil beacon"),
+    (re.compile(r"(?i)\b(?:fetch|curl|POST|send|upload)\b[^.\n]{0,50}"
+                r"https?://[^\s)]+[?&][^\s)]*="),
+     "asks for a fetch to a templated URL — possible exfiltration"),
+    (re.compile(r"[A-Za-z0-9+/]{200,}={0,2}"),
+     "long base64-like blob in prose"),
+    (re.compile(r"(?i)\byou are now\b|\bnew instructions?\s*:"),
+     "phrasing that addresses the reader's assistant as if reconfiguring it"),
+]
+
 SCAFFOLD_PAT = [
     re.compile(r"\*\*P1 — \.\*\*"),
     re.compile(r"State each load-bearing claim with an honest confidence tier"),
@@ -166,6 +210,36 @@ def audit(repo: Path, slug: str) -> list[tuple[str, str, str]]:
             out.append(("BLOCK", "EMPTY",
                         "MODEL.md still contains scaffold placeholder text"))
             break
+
+    # --- INJECTION: content aimed at the READER'S assistant, not at the reader.
+    #
+    # These files are designed to be pasted into someone's ChatGPT or Claude.
+    # That makes every author-controlled string a potential instruction to a
+    # stranger's assistant — a threat no other registry check covers, because
+    # the payload is prose rather than code.
+    #
+    # Scanned across MODEL.md, USE.md, TASKS.md and tasks.json: the generated
+    # files are included because an author can hand-edit them after generation,
+    # and tasks.json because an imported repo brings its own.
+    inj_targets = ["MODEL.md", "USE.md", "TASKS.md", "tasks.json"]
+    for rel in inj_targets:
+        f = repo / rel
+        if not f.exists():
+            continue
+        try:
+            t = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for pat, what in INJECT_BLOCK:
+            m = pat.search(t)
+            if m:
+                out.append(("BLOCK", "INJECTION",
+                            f"{rel}: {what} — {m.group(0)[:60]!r}"))
+        for pat, what in INJECT_FLAG:
+            m = pat.search(t)
+            if m:
+                out.append(("FLAG", "INJECTION",
+                            f"{rel}: {what} — {m.group(0)[:60]!r}"))
 
     # --- UNRUNNABLE: theory with no way to use it.
     #

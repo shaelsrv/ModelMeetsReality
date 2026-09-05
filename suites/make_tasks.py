@@ -116,6 +116,19 @@ COMMON_RULES = """- OBSERVE FIRST. Search for what actually happened. Cite 2-4 c
   made and graded — not a score, and not evidence it is right."""
 
 
+def _one_line(s, cap: int) -> str:
+    """Flatten and cap a short author-controlled field.
+
+    A custom task's name and description are written into a prompt a stranger
+    pastes into their assistant, so they must not carry structure: collapsing
+    whitespace kills multi-line payloads and fake-heading tricks, and the cap
+    kills the rest.
+    """
+    s = re.sub(r"\s+", " ", str(s or "")).strip()
+    s = s.replace("<<<", "").replace(">>>", "").replace("```", "")
+    return s if len(s) <= cap else s[:cap].rstrip() + "…"
+
+
 def _section(md: str, heading: str) -> str:
     m = re.search(rf"^##\s*{heading}.*?$(.*?)(?=^##\s|\Z)", md, re.I | re.M | re.S)
     return (m.group(1).strip() if m else "")
@@ -139,7 +152,8 @@ def build(slug: str, author: str) -> tuple[str, list]:
 
     title = card.get("title") or slug.replace("-", " ").title()
     kind = card.get("kind") or "forecaster"
-    mech = card.get("mechanism") or ""
+    mech = _one_line(card.get("mechanism"), 240)
+    title = _one_line(title, 80)
     repo_url = card.get("repo") or f"https://github.com/{author}/{slug}"
     # A model may CHOOSE its tasks rather than inherit them from its kind.
     # tasks.json in the repo is that choice, and it lives in the repo (not in
@@ -172,8 +186,20 @@ def build(slug: str, author: str) -> tuple[str, list]:
             # COMMON_RULES scaffold, so a task added through the UI carries the
             # same discipline as a built-in one. A freeform prompt box would be
             # the one hole in that.
-            if c.get("name") and c.get("does"):
-                chosen.append((c["name"], c.get("cadence", "weekly"), c["does"]))
+            #
+            # Sanitised HERE, not only at the cockpit endpoint. An IMPORTED
+            # repo brings its own tasks.json, publish_model regenerates from
+            # it, and neither path touches /api/runs — so a check that lived
+            # only in the endpoint would be bypassed by exactly the case that
+            # matters: a stranger's model.
+            nm = _one_line(c.get("name"), 60)
+            ds = _one_line(c.get("does"), 200)
+            cd = _one_line(c.get("cadence"), 20) or "weekly"
+            if nm and ds:
+                chosen.append((nm, cd, ds))
+            elif c.get("name") or c.get("does"):
+                warn.append("a custom task was dropped: name or description "
+                            "was empty after sanitising")
         if chosen:
             tasks = chosen
         elif sel:

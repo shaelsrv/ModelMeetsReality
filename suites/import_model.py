@@ -188,6 +188,25 @@ def main() -> None:
         print(f"  claims         : {i['claims']} ({i['graded']} graded) — would be quarantined")
         print(f"  carries index  : {'yes — will be dropped' if i['carries_index'] else 'no'}")
         print(f"  size           : {i['files']} files, {i['bytes']//1024} KB")
+        # A stranger's model is exactly the case the injection tripwire exists
+        # for, and inspect is where a person decides whether to trust the repo
+        # at all — so it is reported here, before import.
+        try:
+            from suites.legitimacy_audit import audit as _la
+            inj = [f for f in _la(Path(a.inspect), Path(a.inspect).name)
+                   if f[1] == "INJECTION"]
+        except Exception:
+            inj = []
+        if inj:
+            print(f"  !! {len(inj)} injection tripwire(s):")
+            for sev, _k, detail in inj:
+                print(f"       {sev:<5} {detail}")
+            print("     These files are meant to be pasted into an assistant, so "
+                  "prose can BE an instruction.")
+            print("     Read them yourself before importing.")
+        else:
+            print("  injection scan : nothing tripped — but this catches lazy "
+                  "attacks only; read it yourself")
         return
     if not a.source:
         ap.print_help()
