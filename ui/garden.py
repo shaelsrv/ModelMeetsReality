@@ -30,6 +30,10 @@ GARDEN_PAGE = """
   <span class="mono">v1</span> format: a theory with premises, at least one falsifiable
   consequence, and a deletion clause. Records are <b>counts</b>, not scores &mdash; a model
   is judged by its own grading, never by a reviewer's opinion.</p>
+  <p class="muted" style="font-size:.8rem;border-left:2px solid var(--acc);padding-left:.7rem">
+  <b>Nothing here is ranked.</b> Every record is the author's own count until claims can be
+  re-resolved independently &mdash; ranking on self-report would reward generous self-grading.
+  Filter by what fits your question, not by position in the list.</p>
 
   <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:.8rem 0">
     <input id="g-q" placeholder="search name, mechanism, author…"
@@ -69,15 +73,39 @@ const G_FACETS = [
 const G_SEL = {};
 let G_LIMIT = 60;          // how many cards are painted; grows via "show more"
 
+let G_SOURCE = 'local';
+
 async function loadGarden(){
   try {
     const r = await fetch('/api/garden');
-    GARDEN = await r.json();
-    if (GARDEN.error){ GARDEN = []; }
+    const d = await r.json();
+    // The endpoint answers {source, models}; older builds answered a bare
+    // array, so accept both rather than blanking the tab on a version skew.
+    if (Array.isArray(d)) { GARDEN = d; G_SOURCE = 'local'; }
+    else if (d && d.error) { GARDEN = []; }
+    else { GARDEN = d.models || []; G_SOURCE = d.source || 'local'; }
   } catch(e){ GARDEN = []; }
   gFacets();
   gRender();
 }
+
+// Where these cards came from decides what they MEAN: public cards are other
+// people's models, local ones are your own. Showing them identically would
+// quietly imply this instance's models are published when they are not.
+// A record count with no stated provenance reads as a measurement when it is a
+// self-report. The badge is never omitted, on any card, for that reason.
+const G_PROV_WHY = {
+  'self-graded': 'the author’s own count, unverified',
+  'criteria-frozen': 'criteria were registered before the resolution date',
+  'independently-resolved': 'resolved by someone other than the author',
+};
+
+const G_SRC_NOTE = {
+  public: ['live garden', 'models published by others at modelmeetsreality.xyz'],
+  cached: ['cached garden', 'last downloaded copy — the site was unreachable'],
+  local:  ['your models only', 'the public garden was unreachable, so this shows ' +
+           'this instance’s own models as their cards would appear'],
+};
 
 function gVal(m, key){
   if (key === "level") return "L" + (m.level ?? 0);
@@ -119,10 +147,13 @@ function gRender(){
   // page, so paint a page at a time regardless of how many models exist.
   const PAGE = 60;
   const shown = rows.slice(0, G_LIMIT);
-  document.getElementById('g-count').textContent =
-    rows.length > shown.length
+  const [srcLabel, srcWhy] = G_SRC_NOTE[G_SOURCE] || G_SRC_NOTE.local;
+  document.getElementById('g-count').innerHTML =
+    (rows.length > shown.length
       ? `showing ${shown.length} of ${rows.length} matches (${GARDEN.length} models total)`
-      : `${rows.length} of ${GARDEN.length} models`;
+      : `${rows.length} of ${GARDEN.length} models`)
+    + ` &middot; <span title="${esc(srcWhy)}" style="border-bottom:1px dotted var(--line)">`
+    + `${esc(srcLabel)}</span>`;
   document.getElementById('g-list').innerHTML = (shown.length ? shown.map(m => {
     const d = m.derived || {}, dec = m.declared || {};
     const ev = d.evidence || m.evidence || 'untested';
@@ -148,6 +179,10 @@ function gRender(){
           color:var(--sub);margin-right:.3rem">${esc(c)}</span>`).join('')}</div>
       <div class="muted" style="font-size:.78rem">
         ${rec.open ?? 0} open · ${rec.graded ?? 0} graded
+        <span class="badge" title="${esc(G_PROV_WHY[m.record_provenance||'self-graded']
+          || G_PROV_WHY['self-graded'])}"
+          style="background:transparent;border:1px solid var(--line);color:var(--sub)"
+          >${esc(m.record_provenance || 'self-graded')}</span>
         ${(m.aspects||[]).length ? ' · ' + esc((m.aspects||[]).join(', ')) : ''}
         ${m.e_span ? ` · E${m.e_span[0]}–E${m.e_span[1]}` : ''}
       </div>
