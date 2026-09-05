@@ -15,6 +15,26 @@ in places, and v2 will fix those in the open rather than by silent drift.
     model.json        machine-readable card (schema below)
     LICENSE           anything permitting redistribution; CC-BY-4.0 suggested
 
+## Strongly recommended
+
+    USE.md            how to RUN the model in ChatGPT / Claude / Gemini
+
+MODEL.md is the theory; USE.md is how someone without Python, a local model, or
+any tooling actually uses it. A reader pastes one line —
+`https://github.com/<owner>/<model>  Help me use this` — and the assistant reads
+the repo and becomes the model.
+
+Generate it with `python -m suites.make_use --model <slug> --author <handle>`.
+Verified working in a live ChatGPT session: the assistant explained itself,
+flagged the model's own low-confidence premise unprompted, labelled its guesses,
+and produced a dated falsifiable prediction rather than a summary.
+
+USE.md must follow **Review → Explain → Confirm → Apply**: explain what the
+model is, say what it will and will not do, and ask before proceeding. A pasted
+instruction block is shaped exactly like a prompt-injection attempt — the only
+honest difference is that this one expects to be examined and refused. A model
+whose USE.md demands obedience is indistinguishable from an attack.
+
 ### MODEL.md must contain
 
     # <Name> — <one line> (v1)
