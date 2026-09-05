@@ -99,6 +99,21 @@ def publish(slug: str, owner: str, private: bool, dry: bool) -> dict:
     if not card_f.exists():
         return {"model": slug, "skipped": "no model.json — run make_card first"}
 
+    # Publication is the irreversible step, so the legitimacy gate runs HERE
+    # rather than only at launch. The other gates do not catch this: make_card
+    # called unwritten scaffolds "listable" and validate_card passed them,
+    # because both check for the falsifier HEADING and placeholder text sits
+    # underneath it.
+    try:
+        from suites.legitimacy_audit import audit as _legit_audit
+        blocks = [f for f in _legit_audit(src, slug) if f[0] == "BLOCK"]
+        if blocks:
+            return {"model": slug,
+                    "skipped": "legitimacy audit: "
+                               + "; ".join(f"{k} {d[:60]}" for _, k, d in blocks)}
+    except ImportError:
+        pass
+
     exists = gh_repo_exists(owner, slug)
     if dry:
         return {"model": slug, "would": "update" if exists else "create",

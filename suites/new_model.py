@@ -10,6 +10,7 @@ from harness.fleet import ROOT, MODELS_DIR
 
 MODEL_TMPL = """# {title} — (v1)
 
+**The kind:** {kind}
 **The domain:** {domain}
 
 ## Premises
@@ -19,6 +20,13 @@ MODEL_TMPL = """# {title} — (v1)
 ## Falsifiable consequences (v1)
 
 1. **:** a concrete observable that would count against the model.
+
+## Deletion clause
+
+(When should this model be retired? State the conditions under which you would
+stop believing it — if consequence 1 fails twice, if the mechanism turns out to
+restate something simpler. A model that cannot say what would end it is not
+falsifiable, and the format requires this.)
 
 ## Watch domains (v1)
 
@@ -53,7 +61,8 @@ def main():
     rdir = MODELS_DIR / a.slug
     rdir.mkdir(exist_ok=True)
     (rdir / "MODEL.md").write_text(
-        MODEL_TMPL.format(title=a.title or a.slug, domain=a.domain), encoding="utf-8")
+        MODEL_TMPL.format(title=a.title or a.slug, domain=a.domain, kind=a.kind),
+        encoding="utf-8")
     (rdir / "watch.json").write_text(json.dumps(WATCH_TMPL, indent=1), encoding="utf-8")
     f = ROOT / "fleet.json"
     cfg = json.load(f.open(encoding="utf-8"))
