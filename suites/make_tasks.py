@@ -141,9 +141,48 @@ def build(slug: str, author: str) -> tuple[str, list]:
     kind = card.get("kind") or "forecaster"
     mech = card.get("mechanism") or ""
     repo_url = card.get("repo") or f"https://github.com/{author}/{slug}"
-    tasks = KIND_TASKS.get(kind, KIND_TASKS["forecaster"])
-    if kind not in KIND_TASKS:
-        warn.append(f"kind '{kind}' has no task template; used forecaster's")
+    # A model may CHOOSE its tasks rather than inherit them from its kind.
+    # tasks.json in the repo is that choice, and it lives in the repo (not in
+    # the cockpit) so the selection travels with a Garden submission or an
+    # import, the same way tags.json does.
+    #
+    # Absent tasks.json, output is byte-identical to the kind default. That is a
+    # hard requirement, not a nicety: publish_model regenerates TASKS.md on
+    # every publish, so any drift here would churn every repo that never opted
+    # in — and a user's dragged selection would die silently on the next push,
+    # which is worse than having no picker at all.
+    tasks = None
+    sel_file = repo / "tasks.json"
+    if sel_file.exists():
+        try:
+            sel = json.load(sel_file.open(encoding="utf-8"))
+        except (OSError, ValueError):
+            sel = {}
+            warn.append("tasks.json is unreadable; fell back to the kind default")
+        chosen = []
+        by_id = {f"{k}:{t[0]}": t for k, v in KIND_TASKS.items() for t in v}
+        for tid in sel.get("selected", []):
+            if tid in by_id:
+                chosen.append(by_id[tid])
+            else:
+                warn.append(f"unknown task template '{tid}' — skipped")
+        for c in sel.get("custom", []):
+            # Custom tasks are a (name, cadence, does) triple, never freeform
+            # prompt text. The generator wraps them in the same STEP 1/2/3 and
+            # COMMON_RULES scaffold, so a task added through the UI carries the
+            # same discipline as a built-in one. A freeform prompt box would be
+            # the one hole in that.
+            if c.get("name") and c.get("does"):
+                chosen.append((c["name"], c.get("cadence", "weekly"), c["does"]))
+        if chosen:
+            tasks = chosen
+        elif sel:
+            warn.append("tasks.json selected nothing usable; used the kind default")
+
+    if tasks is None:
+        tasks = KIND_TASKS.get(kind, KIND_TASKS["forecaster"])
+        if kind not in KIND_TASKS:
+            warn.append(f"kind '{kind}' has no task template; used forecaster's")
 
     consequences = _section(md, "Falsifiable consequences")
     if not consequences:

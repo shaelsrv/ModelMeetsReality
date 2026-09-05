@@ -524,6 +524,50 @@ kbd { font-family:"IBM Plex Mono",monospace; background:var(--panel); border:1px
     consequences, deletion clause) + empty ledger, git-initialized. Wiring into the
     grading rosters is a one-line instruction via Connect.</p>
   </div>
+
+  <div class="card"><h3>Scheduled runs <span class="muted" style="font-weight:400;font-size:.8rem">
+    &middot; which tasks this model runs over time</span></h3>
+    <p class="muted" style="font-size:.83rem">A model that only answers when asked is a
+    reference book. On a schedule it is an instrument. Drag from the catalogue, or click to
+    add. Saving rewrites the model&rsquo;s <span class="mono">TASKS.md</span> &mdash; the file a
+    reader pastes into ChatGPT or Claude.</p>
+    <label>model</label>
+    <select id="r-model" onchange="loadRuns()" style="background:var(--panel);
+      border:1px solid var(--line);color:var(--ink);padding:.45rem .7rem;
+      border-radius:6px;font:inherit"></select>
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin:.9rem 0">
+      <div style="flex:1;min-width:16rem">
+        <div class="muted" style="font-size:.7rem;letter-spacing:.1em;
+          text-transform:uppercase;margin-bottom:.4rem">catalogue &mdash; drag or click</div>
+        <div id="r-cat" ondragover="event.preventDefault()" ondrop="rDrop(event,'cat')"
+          style="min-height:7rem;border:1px dashed var(--line);border-radius:8px;padding:.5rem"></div>
+      </div>
+      <div style="flex:1;min-width:16rem">
+        <div class="muted" style="font-size:.7rem;letter-spacing:.1em;
+          text-transform:uppercase;margin-bottom:.4rem">assigned to this model</div>
+        <div id="r-sel" ondragover="event.preventDefault()" ondrop="rDrop(event,'sel')"
+          style="min-height:7rem;border:1px dashed var(--acc);border-radius:8px;padding:.5rem"></div>
+      </div>
+    </div>
+    <details style="margin:.4rem 0">
+      <summary class="muted" style="cursor:pointer;font-size:.85rem">write a new task</summary>
+      <p class="muted" style="font-size:.8rem;margin:.5rem 0">You name what it answers and how
+      often. The prompt itself is generated with the same observe&rarr;read&rarr;predict
+      discipline every task carries &mdash; that part is not editable, deliberately: a freeform
+      prompt box would be the one hole in it.</p>
+      <label>name</label><input id="r-name" placeholder="Collision watch">
+      <label>what it answers</label><input id="r-does"
+        placeholder="flag any other launch landing inside the same window">
+      <label>cadence</label>
+      <select id="r-cad" style="background:var(--panel);border:1px solid var(--line);
+        color:var(--ink);padding:.45rem .7rem;border-radius:6px;font:inherit">
+        <option>weekly</option><option>monthly</option>
+        <option>daily</option><option>quarterly</option></select>
+      <button class="act" style="margin-left:.5rem" onclick="rAddCustom()">add to assigned</button>
+    </details>
+    <button class="act" onclick="saveRuns()">Save &amp; regenerate TASKS.md</button>
+    <span id="r-msg" class="muted" style="margin-left:.6rem;font-size:.85rem"></span>
+  </div>
 </section>
 
 <section id="events">
@@ -850,6 +894,15 @@ async function loadModels(){
   } catch(e){}
   const groups = {0:[],1:[],2:[]};
   ms.forEach(m => groups[levels[m.name] ?? 0].push(m));
+  // Feed the scheduled-runs picker from the same list, so a model created in
+  // this tab is immediately assignable without a reload.
+  const sel = $('#r-model');
+  if (sel) {
+    const keep = sel.value;
+    sel.innerHTML = ms.map(m => `<option>${esc(m.name)}</option>`).join('');
+    if (keep && ms.some(m => m.name === keep)) sel.value = keep;
+    if (sel.value) loadRuns();
+  }
   $('#mlist').innerHTML = [0,1,2].filter(l => groups[l].length).map(l =>
     `<h3 style="font-size:.85rem;color:var(--accd);margin:1.1rem 0 .3rem;`+
     `font-family:'IBM Plex Mono',monospace;letter-spacing:.06em">${LEVEL_LABEL[l]} `+
@@ -878,6 +931,91 @@ async function createModel(){
     : `<p class="okmsg">✓ created ${esc(r.slug)} — ${esc(r.next)}</p>`;
   loadModels();
 }
+/* ---- scheduled runs: which tasks a model runs over time ----------------
+   Distinct from the Tasks tab, which is the OPERATOR's work queue ("2 claims
+   due for grading"). These are the model's own recurring prompts. */
+let R_CAT = [], R_SEL = [], R_SLUG = '';
+
+async function loadRuns(){
+  const slug = $('#r-model').value;
+  if (!slug) return;
+  R_SLUG = slug;
+  const d = await (await fetch('/api/runs?model=' + encodeURIComponent(slug))).json();
+  if (d.error){ $('#r-msg').textContent = d.error; return; }
+  R_SEL = d.selected || [];
+  // The catalogue is every template from every kind, not just this model's.
+  // Six of ten models here are forecasters with identical tasks; a timer that
+  // wants a forecaster's resolution check should be able to take one.
+  const chosen = new Set(R_SEL.map(t => t.id));
+  R_CAT = (d.catalogue || []).filter(t => !chosen.has(t.id));
+  rRender();
+  $('#r-msg').textContent = d.source === 'default'
+    ? 'showing the ' + d.kind + ' default (nothing saved yet)' : '';
+}
+
+function rCard(t, where){
+  const custom = String(t.id).startsWith('custom:');
+  return `<div draggable="true" ondragstart="rDrag(event,'${esc(t.id)}')"
+    onclick="rMove('${esc(t.id)}','${where}')"
+    style="cursor:grab;border:1px solid var(--line);border-radius:6px;
+           padding:.45rem .6rem;margin:0 0 .4rem;background:var(--bg)">
+    <b style="font-size:.88rem">${esc(t.name)}</b>
+    <span class="muted mono" style="font-size:.7rem;margin-left:.4rem">${esc(t.cadence)}</span>
+    ${custom ? '<span class="badge" style="margin-left:.4rem">custom</span>' : ''}
+    <div class="muted" style="font-size:.78rem;margin-top:.15rem">${esc(t.does)}</div>
+  </div>`;
+}
+
+function rRender(){
+  $('#r-cat').innerHTML = R_CAT.length ? R_CAT.map(t => rCard(t,'cat')).join('')
+    : '<p class="muted" style="font-size:.82rem">everything is assigned.</p>';
+  $('#r-sel').innerHTML = R_SEL.length ? R_SEL.map(t => rCard(t,'sel')).join('')
+    : '<p class="muted" style="font-size:.82rem">none — this model runs on request only.</p>';
+}
+
+function rDrag(e, id){ e.dataTransfer.setData('text/plain', id); }
+
+function rDrop(e, target){
+  e.preventDefault();
+  rMoveTo(e.dataTransfer.getData('text/plain'), target);
+}
+
+/* Click is the fallback for drag: hand-rolled DnD is where jank lives, and a
+   picker nobody can operate is worse than no picker. */
+function rMove(id, from){ rMoveTo(id, from === 'cat' ? 'sel' : 'cat'); }
+
+function rMoveTo(id, target){
+  const from = target === 'sel' ? R_CAT : R_SEL;
+  const to   = target === 'sel' ? R_SEL : R_CAT;
+  const i = from.findIndex(t => t.id === id);
+  if (i < 0) return;                       // already where it was dropped
+  const [t] = from.splice(i, 1);
+  // A custom task dragged out of "assigned" is deleted, not parked in a
+  // catalogue it never came from.
+  if (!(target === 'cat' && String(t.id).startsWith('custom:'))) to.push(t);
+  rRender();
+}
+
+function rAddCustom(){
+  const name = $('#r-name').value.trim(), does = $('#r-does').value.trim();
+  if (!name || !does){ $('#r-msg').textContent = 'a task needs a name and what it answers'; return; }
+  R_SEL.push({id:'custom:' + name, name, cadence:$('#r-cad').value, does, custom:true});
+  $('#r-name').value = ''; $('#r-does').value = '';
+  $('#r-msg').textContent = '';
+  rRender();
+}
+
+async function saveRuns(){
+  $('#r-msg').textContent = 'saving…';
+  const body = {model: R_SLUG,
+    selected: R_SEL.filter(t => !t.custom).map(t => t.id),
+    custom:   R_SEL.filter(t => t.custom)
+                   .map(t => ({name:t.name, cadence:t.cadence, does:t.does}))};
+  const r = await (await fetch('/api/runs', {method:'POST', body: JSON.stringify(body)})).json();
+  $('#r-msg').textContent = r.error ? ('✗ ' + r.error)
+    : `✓ ${r.tasks} task(s) → TASKS.md rewritten`;
+}
+
 async function loadTasks(){
   const t = await (await fetch('/api/tasks')).json();
   $('#due').innerHTML = t.due.length ? t.due.map(x =>
@@ -2106,20 +2244,46 @@ class H(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(500, {"error": str(e)[:200]})
         if p == "/api/garden":
-            # Local index by default so the page works offline; a published
-            # garden/index.json (submitted cards) takes precedence when present.
-            pub = ROOT / "garden" / "index.json"
-            if pub.exists():
+            # Three sources, in preference order. The PUBLIC garden comes first
+            # because browsing other people's models is the point of the tab;
+            # the local index is the fallback so the tab still works with no
+            # network — the self-host edition treats that as a requirement, not
+            # a nicety.
+            #
+            # The fetch is proxied through this server rather than made from the
+            # page, so the cockpit degrades cleanly when the public site is
+            # unreachable or blocked, and so no request leaves the machine
+            # unless the operator actually opened this tab.
+            src, cards = None, None
+            url = (_cfg.get("garden_url")
+                   or "https://modelmeetsreality.xyz/modelgarden/index.json")
+            if _cfg.get("garden_remote", True):
                 try:
-                    return self._send(200, json.load(pub.open(encoding="utf-8")))
-                except (OSError, ValueError):
-                    pass
-            try:
-                sys.path.insert(0, str(UI))
-                from garden import local_index
-                return self._send(200, local_index(TOOLS, _cfg))
-            except Exception as e:
-                return self._send(500, {"error": str(e)[:200]})
+                    import urllib.request
+                    req = urllib.request.Request(
+                        url, headers={"User-Agent": "model-garden-cockpit/1"})
+                    with urllib.request.urlopen(req, timeout=6) as r:
+                        d = json.loads(r.read(4_000_000).decode("utf-8", "replace"))
+                    cards, src = d.get("models", []), "public"
+                except Exception:
+                    cards = None            # offline or blocked: fall through
+            if cards is None:
+                pub = ROOT / "garden" / "index.json"
+                if pub.exists():
+                    try:
+                        d = json.load(pub.open(encoding="utf-8"))
+                        cards = d.get("models", d) if isinstance(d, dict) else d
+                        src = "cached"
+                    except (OSError, ValueError):
+                        cards = None
+            if cards is None:
+                try:
+                    sys.path.insert(0, str(UI))
+                    from garden import local_index
+                    cards, src = local_index(TOOLS, _cfg), "local"
+                except Exception as e:
+                    return self._send(500, {"error": str(e)[:200]})
+            return self._send(200, {"source": src, "models": cards})
         if p == "/api/home":
             import subprocess as _sp
             today = date.today().isoformat()
@@ -2239,6 +2403,51 @@ class H(BaseHTTPRequestHandler):
                             f"{n_traj} trajectory rows · {n_pm} postmortems"),
                 "scoreboard": sb.read_text(encoding="utf-8")[:6000] if sb.exists() else "",
                 "joins": joins.read_text(encoding="utf-8")[:4000] if joins.exists() else ""})
+        if p == "/api/runs":
+            # Which recurring tasks a model runs. Reads the repo's tasks.json
+            # (the selection travels with the model, like tags.json) and offers
+            # the FULL catalogue across every kind — a timer that wants a
+            # forecaster's resolution check should be able to take one.
+            import urllib.parse as _up
+            slug = _up.parse_qs(_up.urlparse(self.path).query).get("model", [""])[0]
+            try:
+                sys.path.insert(0, str(ROOT))
+                from suites.make_tasks import KIND_TASKS
+            except Exception as e:
+                return self._send(500, {"error": f"task catalogue unavailable: {e}"})
+            cat = [{"id": f"{k}:{n}", "name": n, "cadence": c, "does": d, "kind": k}
+                   for k, v in KIND_TASKS.items() for (n, c, d) in v]
+            repo = TOOLS / slug
+            if not slug or not (repo / "MODEL.md").exists():
+                return self._send(200, {"catalogue": cat, "selected": [],
+                                        "error": "unknown model" if slug else ""})
+            kind = "forecaster"
+            cf = repo / "model.json"
+            if cf.exists():
+                try:
+                    kind = json.load(cf.open(encoding="utf-8")).get("kind") or kind
+                except (OSError, ValueError):
+                    pass
+            by_id = {t["id"]: t for t in cat}
+            sf = repo / "tasks.json"
+            if sf.exists():
+                try:
+                    sel = json.load(sf.open(encoding="utf-8"))
+                except (OSError, ValueError):
+                    sel = {}
+                out = [by_id[i] for i in sel.get("selected", []) if i in by_id]
+                out += [{"id": "custom:" + c.get("name", ""), "name": c.get("name", ""),
+                         "cadence": c.get("cadence", "weekly"), "does": c.get("does", ""),
+                         "custom": True} for c in sel.get("custom", [])]
+                return self._send(200, {"catalogue": cat, "selected": out,
+                                        "source": "saved", "kind": kind})
+            # No selection saved: show the kind default, and say so, so the
+            # operator knows they are looking at an inherited list rather than
+            # a chosen one.
+            deflt = [t for t in cat if t["kind"] == kind]
+            return self._send(200, {"catalogue": cat, "selected": deflt,
+                                    "source": "default", "kind": kind})
+
         return self._send(404, {"error": "not found"})
 
     def do_POST(self):
@@ -2251,6 +2460,46 @@ class H(BaseHTTPRequestHandler):
         if p == "/api/models":
             return self._send(200, create_model(body.get("slug", ""), body.get("title", ""),
                                                 body.get("domain", "")))
+        if p == "/api/runs":
+            # Save the selection to the model's own repo, then REGENERATE
+            # TASKS.md from it. Writing the selection without regenerating
+            # would leave the file a reader actually pastes disagreeing with
+            # the choice just made.
+            slug = (body.get("model") or "").strip()
+            repo = TOOLS / slug
+            if not slug or not (repo / "MODEL.md").exists():
+                return self._send(400, {"error": "unknown model"})
+            custom = [{"name": (c.get("name") or "").strip(),
+                       "cadence": (c.get("cadence") or "weekly").strip(),
+                       "does": (c.get("does") or "").strip()}
+                      for c in body.get("custom", []) or []]
+            custom = [c for c in custom if c["name"] and c["does"]]
+            sel = {"selected": [str(i) for i in body.get("selected", []) or []],
+                   "custom": custom}
+            if not sel["selected"] and not sel["custom"]:
+                # Removing every task is a legitimate choice ("runs on request
+                # only"), but it must be explicit rather than an empty POST
+                # silently reverting the model to its kind default.
+                sel["selected"], sel["custom"] = [], []
+            try:
+                (repo / "tasks.json").write_text(
+                    json.dumps(sel, ensure_ascii=False, indent=1), encoding="utf-8")
+                sys.path.insert(0, str(ROOT))
+                from suites.make_tasks import build as _bt
+                cf = repo / "model.json"
+                author = "unknown"
+                if cf.exists():
+                    try:
+                        author = json.load(cf.open(encoding="utf-8")).get("author") or author
+                    except (OSError, ValueError):
+                        pass
+                doc, warn = _bt(slug, author)
+                (repo / "TASKS.md").write_text(doc, encoding="utf-8")
+            except Exception as e:
+                return self._send(500, {"error": str(e)[:200]})
+            return self._send(200, {"ok": True,
+                                    "tasks": len(sel["selected"]) + len(sel["custom"]),
+                                    "warnings": warn})
         if p == "/api/tasks":
             t = manual_tasks()
             if body.get("text", "").strip():
