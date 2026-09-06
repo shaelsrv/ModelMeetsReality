@@ -24,22 +24,6 @@ from typing import Any, Optional
 BASE = os.environ.get("OPENROUTER_BASE", "https://openrouter.ai/api/v1")
 
 
-def _is_local(base: str) -> bool:
-    """Is this endpoint on the machine (or the docker host), not the internet?
-
-    Decides whether an API key is required. Local servers — Ollama on 11434,
-    LM Studio on 1234, llama.cpp — accept requests with no credential, so
-    demanding one only prevents fully-offline operation.
-
-    `host.docker.internal` counts: from inside a container that name resolves to
-    the host, which is exactly how a sandboxed run reaches a local model without
-    the container itself having internet.
-    """
-    b = base.lower()
-    return any(h in b for h in ("localhost", "127.0.0.1", "0.0.0.0", "[::1]",
-                                "host.docker.internal", "ollama", "lmstudio"))
-
-
 @dataclass
 class ChatResult:
     text: str
@@ -47,6 +31,48 @@ class ChatResult:
     usage: dict = field(default_factory=dict)
     raw: dict = field(default_factory=dict)
     error: Optional[str] = None
+    # URLs the provider actually retrieved for this completion. Empty when the
+    # call did not research. This is the audit trail: a claim that cites a URL
+    # absent from here is an invented citation, and validate_citations() below
+    # is what stops it reaching the ledger.
+    citations: list = field(default_factory=list)
+    researched: bool = False
+
+
+def _annotations(choice: dict) -> list:
+    """Pull url_citation annotations off a completion. Providers differ on where
+    they hang them, so check both documented spots rather than assuming one."""
+    msg = choice.get("message") or {}
+    out = []
+    for a in (msg.get("annotations") or []):
+        u = (a.get("url_citation") or {}) if isinstance(a, dict) else {}
+        if u.get("url"):
+            out.append({"url": u["url"], "title": u.get("title", "")})
+    return out
+
+
+def validate_citations(cited: list[str], retrieved: list[dict]) -> tuple[list, list]:
+    """Split claimed URLs into (grounded, invented) against what was retrieved.
+
+    A model asked to cite its sources will sometimes produce plausible URLs it
+    never opened. Sealing such a claim would launder a fabrication into the
+    ledger under the appearance of evidence, so citations are checked against
+    the provider's own annotation list rather than trusted.
+    """
+    have = {r["url"].rstrip("/") for r in retrieved}
+    # Host+path prefix match: providers routinely return a canonicalised or
+    # redirect-resolved form of the URL the model echoes back.
+    def seen(u: str) -> bool:
+        u = (u or "").rstrip("/")
+        return any(u == h or u.startswith(h) or h.startswith(u) for h in have)
+    # Only judge things that are actually URLs. A lens sometimes puts its search
+    # QUERY in the sources list ('(search: "foo" OR "bar")'), which is not a
+    # fabricated citation -- it is a non-URL, and flagging it as invented cries
+    # wolf on the one check that must stay trustworthy.
+    urls = [u for u in cited if str(u).strip().lower().startswith(('http://', 'https://'))]
+    grounded = [u for u in urls if seen(u)]
+    invented = [u for u in urls if not seen(u)]
+    return grounded, invented
 
 
 def chat(
@@ -56,23 +82,17 @@ def chat(
     temperature: float = 0.3,
     max_tokens: int = 2400,
     tools: Optional[list] = None,
+    research: bool = False,
+    max_results: int = 5,
     retries: int = 3,
     timeout: int = 120,
 ) -> ChatResult:
     """Send a chat completion to one model via OpenRouter. Returns a ChatResult;
     never raises for an API error — it carries `error` so a benchmark run can score a
     model as 'failed to respond' rather than crashing the whole sweep."""
-    # A LOCAL server (Ollama, LM Studio, llama.cpp) needs no key, and demanding
-    # one made fully-local operation impossible: the fleet refused to start
-    # before it ever reached the endpoint. So a key is required only when
-    # talking to a REMOTE host — pointing OPENROUTER_BASE at localhost is itself
-    # the statement that no credential is involved.
     key = os.environ.get("OPENROUTER_API_KEY")
-    if not key and not _is_local(BASE):
-        return ChatResult(
-            text="", model=model,
-            error="OPENROUTER_API_KEY not set (not needed for a local "
-                  "OPENROUTER_BASE such as http://localhost:11434/v1)")
+    if not key:
+        return ChatResult(text="", model=model, error="OPENROUTER_API_KEY not set")
 
     body: dict[str, Any] = {
         "model": model,
@@ -82,17 +102,19 @@ def chat(
     }
     if tools:
         body["tools"] = tools
+    # Web research. Billed PER REQUEST, so the caller's searches-per-lens cap is
+    # the real cost lever, not max_results.
+    if research:
+        body["plugins"] = [{"id": "web", "max_results": max_results}]
 
     data = json.dumps(body).encode()
-    headers = {"Content-Type": "application/json"}
-    if key:
-        headers["Authorization"] = f"Bearer {key}"
-    if not _is_local(BASE):
-        # OpenRouter asks for these for attribution/ranking. They are not sent
-        # to a local server: a self-hosted endpoint has no use for them, and a
-        # fully-offline setup should not be quietly announcing a referer.
-        headers["HTTP-Referer"] = "https://example.com"
-        headers["X-Title"] = "Copilot Reality Benchmark"
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        # OpenRouter asks for these for attribution/ranking; harmless if unset.
+        "HTTP-Referer": "https://emergencemachine.com",
+        "X-Title": "Copilot Reality Benchmark",
+    }
 
     last_err = None
     for attempt in range(retries):
@@ -102,7 +124,9 @@ def chat(
                 j = json.loads(resp.read().decode())
             choice = (j.get("choices") or [{}])[0]
             text = (choice.get("message") or {}).get("content") or ""
-            return ChatResult(text=text, model=model, usage=j.get("usage", {}), raw=j)
+            cits = _annotations(choice)
+            return ChatResult(text=text, model=model, usage=j.get("usage", {}), raw=j,
+                              citations=cits, researched=bool(research))
         except urllib.error.HTTPError as e:
             detail = e.read().decode(errors="replace")[:300]
             last_err = f"HTTP {e.code}: {detail}"
@@ -148,10 +172,44 @@ def roster(arg: Optional[str] = None) -> list[str]:
 #                     ":online" model suffix maps to allowing the WebSearch tool.
 # The chat() signature is identical across backends; suites never know the difference.
 # ---------------------------------------------------------------------------
+import re as _re
 import shutil as _shutil
 import subprocess as _sp
 
 _CLAUDE_BIN = os.environ.get("CLAUDE_CODE_BIN", "claude")
+
+
+_URL_RE = _re.compile(r'https?://[^\s\"\\\'\\<>)\]]+')
+
+
+def _parse_stream(out: str):
+    """Read a --output-format stream-json transcript: return (result_event, urls).
+
+    The URLs are harvested from the WebSearch tool RESULTS, not from the model's
+    prose — that is the whole point. A URL here is one the tool actually returned,
+    so a citation matching it is grounded and one that does not is invented.
+    """
+    result, urls = None, []
+    seen = set()
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if d.get("type") == "result":
+            result = d
+            continue
+        # tool results arrive as 'user' events carrying tool_result content
+        if d.get("type") == "user":
+            for u in _URL_RE.findall(json.dumps(d)):
+                u = u.rstrip(r'\\.,);')
+                if u not in seen:
+                    seen.add(u)
+                    urls.append({"url": u, "title": ""})
+    return result, urls
 
 
 def _claude_model(model: str) -> str:
@@ -171,27 +229,36 @@ def _chat_claude_code(model, messages, *, max_tokens, timeout, retries) -> "Chat
         (("[system] " + m["content"]) if m.get("role") == "system" else m["content"])
         for m in messages)
     # prompt via STDIN: Windows argv caps ~32k chars and corpora exceed it
+    # When researching, ask for the STREAM so the WebSearch tool events (and the
+    # URLs they actually returned) are visible. Plain --output-format json gives
+    # only the final text, which would leave a researched read unauditable: the
+    # model's cited URLs could not be checked against anything, and an invented
+    # citation would sail into the ledger looking like evidence.
     cmd = [_CLAUDE_BIN, "-p", "--model", _claude_model(model),
-           "--output-format", "json"]
-    # In the agent sandbox --bare is a security CONTROL, not a preference: its
-    # documented behaviour is that OAuth and the keychain are never read, so
-    # auth is strictly the API key passed in. That is what keeps the operator's
-    # subscription credential out of a container built to handle hostile input.
-    # The image sets CLAUDE_CODE_SIMPLE=1; on the host this is a no-op.
-    if os.environ.get("CLAUDE_CODE_SIMPLE") == "1":
-        cmd.insert(1, "--bare")
+           "--output-format", "stream-json" if online else "json"]
     if online:
-        cmd += ["--allowedTools", "WebSearch"]
+        cmd += ["--verbose", "--allowedTools", "WebSearch"]
     last = None
     for attempt in range(retries):
         try:
             r = _sp.run(cmd, input=prompt, capture_output=True,
-                        timeout=max(timeout, 300),
+                        timeout=max(timeout, 540),
                         encoding="utf-8", errors="replace")
             out = (r.stdout or "").strip()
             if not out:
                 last = f"empty output (rc={r.returncode}): {(r.stderr or '')[:200]}"
                 continue
+            if online:
+                j, cits = _parse_stream(out)
+                if j is None:
+                    last = "claude-code: no result event in stream"
+                    continue
+                if j.get("is_error"):
+                    last = f"claude-code error: {str(j.get('result'))[:200]}"
+                    continue
+                return ChatResult(text=j.get("result") or "", model=model,
+                                  usage=j.get("usage", {}), raw=j,
+                                  citations=cits, researched=True)
             j = json.loads(out)
             if j.get("is_error"):
                 last = f"claude-code error: {str(j.get('result'))[:200]}"
@@ -208,12 +275,48 @@ def _chat_claude_code(model, messages, *, max_tokens, timeout, retries) -> "Chat
 _chat_openrouter = chat
 
 
+def _is_local_base() -> bool:
+    b = os.environ.get("OPENROUTER_BASE", BASE).lower()
+    return any(h in b for h in ("localhost", "127.0.0.1", "0.0.0.0", "[::1]",
+                                "host.docker.internal", "ollama", "lmstudio"))
+
+
 def chat(model, messages, *, temperature=0.3, max_tokens=2400, tools=None,
-         retries=3, timeout=120):
+         research=False, max_results=5, retries=3, timeout=120):
+    """One signature across three backends (compat doctrine: every change must work
+    on all three installation levels).
+
+    `research=True` asks the backend to search the web before answering. Support is
+    NOT uniform, and the difference is surfaced rather than hidden:
+
+      openrouter  — native `plugins:[{id:"web"}]`; citations returned.
+      claude-code — WebSearch via the CLI's allow-list (the ":online" suffix path).
+      local       — Ollama / LM Studio have no web capability. The call still runs
+                    and answers from the brief alone, returning researched=False so
+                    the caller can label the read honestly. Degrading loudly beats
+                    crashing (self-host must keep working) and beats degrading
+                    silently (a brief-only read must never be filed as researched).
+    """
     backend = os.environ.get("LLM_BACKEND", "openrouter")
     if backend == "claude-code":
-        return _chat_claude_code(model, messages, max_tokens=max_tokens,
-                                 timeout=timeout, retries=retries)
+        r = _chat_claude_code(model if not research else _with_online(model), messages,
+                              max_tokens=max_tokens, timeout=timeout, retries=retries)
+        # The CLI does not hand back a citation list, so a claude-code read is
+        # researched but unauditable — callers must not treat it as grounded.
+        r.researched = bool(research)
+        return r
+    if research and _is_local_base():
+        r = _chat_openrouter(model, messages, temperature=temperature,
+                             max_tokens=max_tokens, tools=tools,
+                             retries=retries, timeout=timeout)
+        r.researched = False
+        r.raw = dict(r.raw or {}, degraded="local backend has no web search")
+        return r
     return _chat_openrouter(model, messages, temperature=temperature,
                             max_tokens=max_tokens, tools=tools,
+                            research=research, max_results=max_results,
                             retries=retries, timeout=timeout)
+
+
+def _with_online(model: str) -> str:
+    return model if ":online" in model else f"{model}:online"
