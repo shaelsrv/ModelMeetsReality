@@ -364,18 +364,36 @@ v1. All claims candidates until graded.
 PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Model Cockpit</title>
+<!-- Fonts are a PROGRESSIVE enhancement, never a dependency: the cockpit is
+     localhost and is expected to work fully offline, so every stack below ends
+     in a system font that looks right on its own. Nothing is inlined — a
+     megabyte of font data in server.py would be worse than the fallback. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-:root { --bg:#0c1014; --panel:#141a21; --ink:#e9e7e2; --sub:#95a0ac; --line:#242d38;
-        --acc:#4fc3a1; --accd:#83dfc3; --warn:#e08050; }
+/* Model Cockpit v3 palette (ui/design/HANDOFF.md). Bone accent on near-black:
+   the accent is deliberately NOT a status colour, which is why --ok/--warn stay
+   separate. Anywhere colour has to mean good-vs-neutral, it uses those. */
+:root { --bg:#08080A; --panel:#0D0D10; --ink:#ECEAE3; --sub:#959ba7; --line:#232329;
+        --acc:#EDEBE4; --accd:#ECEAE3; --warn:#e08050; --ok:#7fb894;
+        --dim:#5c606b; --bright:#bfc4cd; }
 * { box-sizing:border-box; margin:0; }
-body { background:var(--bg); color:var(--ink); font:15px/1.6 "IBM Plex Sans",system-ui,sans-serif;
+body { background:var(--bg); color:var(--ink); font:15.5px/1.65 "Newsreader",Georgia,"Times New Roman",serif;
        padding:1.5rem 1rem 4rem; }
 main { max-width:60rem; margin:0 auto; }
 h1 { font-size:1.5rem; letter-spacing:-.01em; }
 h1 small { color:var(--sub); font-weight:400; font-size:.75rem; margin-left:.8rem;
            font-family:"IBM Plex Mono",monospace; }
-nav { display:flex; gap:.5rem; margin:1.1rem 0 1.4rem; flex-wrap:wrap; }
-nav button { font:600 .85rem "IBM Plex Sans",sans-serif; padding:.5rem 1rem; cursor:pointer;
+nav { display:flex; gap:1.4rem; margin:1.1rem 0 1.4rem; flex-wrap:wrap;
+      align-items:flex-start; }
+.navgroup { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
+/* The group label is the whole point of grouping — without it this is just
+   twelve pills with wider gaps. */
+.navlabel { font-family:"JetBrains Mono",ui-monospace,monospace; font-size:.62rem;
+            letter-spacing:.18em; text-transform:uppercase; color:var(--dim);
+            margin-right:.15rem; }
+nav button { font:500 .84rem "JetBrains Mono",ui-monospace,SFMono-Regular,monospace; padding:.5rem 1rem; cursor:pointer;
   border:1px solid var(--line); background:var(--panel); color:var(--sub); border-radius:999px; }
 nav button.on { background:var(--acc); border-color:var(--acc); color:var(--bg); }
 section { display:none; } section.on { display:block; }
@@ -395,7 +413,7 @@ pre { background:var(--bg); border:1px solid var(--line); border-radius:8px; pad
 input, textarea { width:100%; background:var(--bg); border:1px solid var(--line); border-radius:7px;
   color:var(--ink); padding:.55rem .7rem; font:inherit; margin:.25rem 0 .7rem; }
 textarea { min-height:5.5rem; font-family:"IBM Plex Mono",monospace; font-size:.85rem; }
-button.act { font:600 .88rem "IBM Plex Sans",sans-serif; background:var(--acc); color:var(--bg);
+button.act { font:500 .84rem "JetBrains Mono",ui-monospace,SFMono-Regular,monospace; background:var(--acc); color:var(--bg);
   border:none; border-radius:7px; padding:.55rem 1.1rem; cursor:pointer; }
 button.act:disabled { opacity:.5 }
 label { font-size:.78rem; color:var(--sub); text-transform:uppercase; letter-spacing:.07em; }
@@ -442,19 +460,32 @@ kbd { font-family:"IBM Plex Mono",monospace; background:var(--panel); border:1px
            border-radius:999px;color:var(--ink);padding:.6rem 1rem;font:inherit;font-size:.9rem">
   <button class="act" style="border-radius:999px" onclick="doSearch()">Search</button>
 </div>
+<!-- Grouped rather than twelve flat pills (ui/design/HANDOFF.md). Twelve
+     equal-weight choices is a scanning problem; the group labels say what each
+     tab is FOR. Order is deliberate — Home first, Connect last. -->
 <nav>
-  <button data-t="home" class="on">Home</button>
-  <button data-t="verdict">Verdict</button>
-  <button data-t="garden">Garden</button>
-  <button data-t="models">Models</button>
-  <button data-t="events">Events</button>
-  <button data-t="brainstorm">Brainstorm</button>
-  <button data-t="entities">Entities</button>
-  <button data-t="map">Map</button>
-  <button data-t="tasks">Tasks</button>
-  <button data-t="assess">Assessments</button>
-  <button data-t="glossary">Glossary</button>
-  <button data-t="connect">Connect to Claude</button>
+  <div class="navgroup"><span class="navlabel">today</span>
+    <button data-t="home" class="on">Home</button>
+    <button data-t="tasks">Tasks</button>
+  </div>
+  <div class="navgroup"><span class="navlabel">fleet</span>
+    <button data-t="models">Models</button>
+    <button data-t="verdict">Verdict</button>
+    <button data-t="assess">Assessments</button>
+  </div>
+  <div class="navgroup"><span class="navlabel">feed</span>
+    <button data-t="events">Events</button>
+    <button data-t="brainstorm">Brainstorm</button>
+  </div>
+  <div class="navgroup"><span class="navlabel">atlas</span>
+    <button data-t="entities">Entities</button>
+    <button data-t="map">Map</button>
+    <button data-t="garden">Garden</button>
+  </div>
+  <div class="navgroup"><span class="navlabel">reference</span>
+    <button data-t="glossary">Glossary</button>
+    <button data-t="connect">Connect</button>
+  </div>
 </nav>
 
 <button id="capbtn" onclick="openCapture()" title="Register a claim (c)"
@@ -1627,8 +1658,9 @@ CLAIM_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Claim — Cockpit</title>
 <style>
-:root { --bg:#0c1014; --panel:#141a21; --ink:#e9e7e2; --sub:#95a0ac; --line:#242d38;
-        --acc:#4fc3a1; --accd:#83dfc3; --warn:#e08050; --miss:#e0705c; --base:#d4b45a; }
+:root { --bg:#08080A; --panel:#0D0D10; --ink:#ECEAE3; --sub:#959ba7; --line:#232329;
+        --acc:#EDEBE4; --accd:#ECEAE3; --warn:#e08050; --miss:#e0705c; --base:#d4b45a;
+        --ok:#7fb894; --dim:#5c606b; --bright:#bfc4cd; }
 * { box-sizing:border-box; margin:0; }
 body { background:var(--bg); color:var(--ink); font:15px/1.65 "IBM Plex Sans",system-ui,sans-serif;
        padding:1.5rem 1rem 4rem; }
@@ -1721,8 +1753,9 @@ MODEL_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__NAME__ — Model Cockpit</title>
 <style>
-:root { --bg:#0c1014; --panel:#141a21; --ink:#e9e7e2; --sub:#95a0ac; --line:#242d38;
-        --acc:#4fc3a1; --accd:#83dfc3; --warn:#e08050; --miss:#e0705c; --base:#d4b45a; }
+:root { --bg:#08080A; --panel:#0D0D10; --ink:#ECEAE3; --sub:#959ba7; --line:#232329;
+        --acc:#EDEBE4; --accd:#ECEAE3; --warn:#e08050; --miss:#e0705c; --base:#d4b45a;
+        --ok:#7fb894; --dim:#5c606b; --bright:#bfc4cd; }
 * { box-sizing:border-box; margin:0; }
 body { background:var(--bg); color:var(--ink); font:15px/1.65 "IBM Plex Sans",system-ui,sans-serif;
        padding:1.5rem 1rem 4rem; }
@@ -1784,7 +1817,7 @@ th { color:var(--sub); font-size:.7rem; text-transform:uppercase; letter-spacing
 #chatbox { flex:1; background:var(--bg); border:1px solid var(--line); border-radius:8px;
   color:var(--ink); padding:.55rem .7rem; font:inherit; font-size:.9rem; min-height:2.6rem;
   resize:vertical; }
-.chatbtn { font:600 .85rem "IBM Plex Sans",sans-serif; background:var(--acc); color:var(--bg);
+.chatbtn { font:500 .84rem "JetBrains Mono",ui-monospace,SFMono-Regular,monospace; background:var(--acc); color:var(--bg);
   border:none; border-radius:8px; padding:.6rem 1.1rem; cursor:pointer; }
 .chatbtn:disabled { opacity:.5; cursor:wait; }
 #chatwrap.incog .chatbtn { background:#7a5cc4; color:#fff; }
