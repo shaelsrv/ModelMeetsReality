@@ -109,7 +109,7 @@ Both tiers behave as documented.
 ## Reproducing
 
 ```bash
-cp -r copilot-template my-copilot && cd my-copilot
+cp -r ModelMeetsReality my-copilot && cd my-copilot
 git config --global --add safe.directory "$PWD"   # see defect 5
 git init && git add -A && git commit -m "main instance"
 cp .env.example .env                              # set LLM_BACKEND
@@ -128,7 +128,7 @@ python -m suites.make_card --model my-model --author you
 
 ## Published, and re-verified from the published copy — 2026-09-06
 
-`github.com/shaelsrv/copilot-template`, **private**, 88 files, master.
+`github.com/shaelsrv/ModelMeetsReality`, **private**, 88 files, master.
 
 Verifying meant cloning it back into an empty directory and running a stranger's
 install against the clone rather than the working tree:
@@ -142,7 +142,7 @@ install against the clone rather than the working tree:
 **Two defects found while reading the tree as a stranger would receive it**, both
 fixed before the push:
 
-- `model_watch` hardcoded `cwd` to a directory literally named `meta-copilot` for
+- `model_watch` hardcoded `cwd` to one specific directory name for
   post-analysis. `SETUP.md` tells users to name their instance `my-copilot`, so
   post-analysis **silently failed on every install that followed the
   instructions**. Now resolves to this repo, whatever it is called.
