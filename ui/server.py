@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import re
 import subprocess
 import sys
@@ -2156,6 +2157,79 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, history(name))
             except Exception as e:
                 return self._send(500, {"error": str(e)[:200]})
+        if p == "/api/visuals":
+            # Generated visual syntheses. Listed even when empty, with the command
+            # that makes one -- an empty list plus a fix beats a missing tab.
+            vd = ROOT.parent / "visuals"
+            items = []
+            for f in sorted(vd.glob("*.html"), reverse=True) if vd.exists() else []:
+                spec = vd / (f.stem + ".json")
+                title, nodes, dropped = f.stem, None, None
+                if spec.exists():
+                    try:
+                        s = json.loads(spec.read_text(encoding="utf-8"))
+                        title = s.get("spec", {}).get("title") or title
+                        nodes = sum(len(x.get("nodes", []))
+                                    for x in s.get("spec", {}).get("sections", []))
+                        dropped = len(s.get("meta", {}).get("dropped") or [])
+                    except ValueError:
+                        pass
+                items.append({"file": f.name, "title": title, "nodes": nodes,
+                              "dropped": dropped,
+                              "url": "/visuals/" + f.name})
+            return self._send(200, {
+                "visuals": items,
+                "views": ["claims", "mindmap", "gaps"],
+                "how": "python -m suites.visualize --view claims",
+                "note": ("Each view is generated from this instance's own structured "
+                         "record. Every card carries the source reference it was built "
+                         "from; anything the model could not reference was dropped and "
+                         "the drop is shown on the page.")})
+        if p.startswith("/visuals/"):
+            # Serve a generated artifact. Name-only, no traversal.
+            name = p.rsplit("/", 1)[1]
+            if not re.fullmatch(r"[A-Za-z0-9._-]{1,80}\.html", name):
+                return self._send(404, {"error": "bad name"})
+            f = ROOT.parent / "visuals" / name
+            if not f.exists():
+                return self._send(404, {"error": "no such visual"})
+            return self._send(200, f.read_bytes(), "text/html")
+        if p == "/api/capabilities":
+            # What this instance can actually DO right now, so the UI can gate a
+            # feature and say WHY it is unavailable rather than hiding it. A tab
+            # that silently vanishes is the same failure as an endpoint returning
+            # count:0 with no explanation -- the reader cannot tell broken from
+            # empty from not-configured.
+            try:
+                sys.path.insert(0, str(ROOT))
+                from suites.grade_claims import _load_env
+                _load_env()
+            except Exception:
+                pass
+            backend = os.environ.get("LLM_BACKEND", "openrouter")
+            key = bool(os.environ.get("OPENROUTER_API_KEY"))
+            base = os.environ.get("OPENROUTER_BASE", "")
+            local = any(h in base.lower() for h in
+                        ("localhost", "127.0.0.1", "0.0.0.0", "[::1]",
+                         "host.docker.internal", "ollama", "lmstudio"))
+            cli = bool(shutil.which(os.environ.get("CLAUDE_CODE_BIN", "claude")))
+
+            if backend == "claude-code":
+                live, why = cli, ("" if cli else
+                                  "LLM_BACKEND=claude-code but the `claude` CLI is not on PATH")
+            elif local:
+                live, why = True, ""
+            else:
+                live, why = key, ("" if key else
+                                  "no OPENROUTER_API_KEY in .env — set one, or set "
+                                  "LLM_BACKEND=claude-code to use the CLI you already have")
+            return self._send(200, {
+                "llm": {"backend": backend, "live": live, "local": local,
+                        "reason": why},
+                # Generation costs one model call on whatever backend is
+                # configured. Said here so the UI can say it too.
+                "generation_cost": "one LLM call per generated view, on your configured backend",
+            })
         if p == "/api/timeline":
             # The event history assembled by suites.event_history: every completed
             # decision the models observed while running, merged and dated.
