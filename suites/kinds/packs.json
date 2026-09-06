@@ -1,0 +1,102 @@
+{
+ "spec": "kind-packs-v1",
+ "note": "Per-kind discipline: the premise shape, the falsifier, and the question the agentic pass asks. The ENGINE IS SHARED -- harness, suites, docker, ledger format are identical across kinds. Only the discipline differs, which is why this is a data file and not eleven forks.",
+ "tiers": {
+  "proven": "a discipline worked out against real instances in this system",
+  "designed": "the falsifier question is stated; no instance built yet, so the pack ships the open question rather than a confident answer"
+ },
+ "packs": {
+  "forecaster": {
+   "tier": "proven",
+   "one_line": "says what will happen, by when",
+   "premise_shape": "By <date>, <observable> will <state>, because <mechanism>.",
+   "falsifier": "the date arrives with the observable in another state",
+   "predict_frame": "Observe the entity and state what you EXPECT to see by the resolution date. Every claim needs an observable a stranger could check and a date. A claim with no date is not a forecast.",
+   "assess_frame": "The date has arrived. Did the stated observable reach the stated state? Grade hit / partial / miss / unresolvable, and say which."
+  },
+  "decision-model": {
+   "tier": "proven",
+   "one_line": "derives a person's decision function from their completed choices",
+   "premise_shape": "Given <recurring decision situation>, <actor> chooses <option A> over <option B>. Revealed by: <2+ completed, announced decisions>. Violated by: <a future choice that breaks the ordering>.",
+   "falsifier": "a future choice, in the named situation, that takes the other option",
+   "predict_frame": "Observe ONLY completed, announced decisions -- signed contracts, executed instructions, confirmed changes. Ignore rumour, 'reportedly considering', and statements of intent: the model's whole claim is that actions reveal what statements conceal. For each premise, report whether a decision since the model was written CONFORMS TO or VIOLATES the stated ordering, and say plainly if no qualifying decision has occurred.",
+   "assess_frame": "Did a completed decision in the named situation take the predicted option? A decision that never arose is UNRESOLVABLE, not a miss.",
+   "banned": "Psychology. 'X is loyal / ruthless / insecure' admits no future observation that settles it. Only orderings over choices.",
+   "scope": "Public figures acting in public roles, professional decisions only. Tag --sensitivity contested."
+  },
+  "tracker": {
+   "tier": "proven",
+   "one_line": "says which signals lead and which lag",
+   "premise_shape": "In <domain>, <signal A> moves before <signal B> by <lag>, because <mechanism>.",
+   "falsifier": "B moves first, or the stated lag fails",
+   "predict_frame": "Report the current values of the leading and lagging signals and the observed gap. State what the lead predicts for the lagging signal, with a date.",
+   "assess_frame": "Did the leading signal move first this period, and did the lag hold?"
+  },
+  "classifier": {
+   "tier": "proven",
+   "one_line": "sorts things others lump together",
+   "premise_shape": "Cases with <feature> belong to <class 1>, not <class 2>, because <mechanism>.",
+   "falsifier": "a case it sorted one way behaves like the other class",
+   "predict_frame": "Sort the observed cases into the model's classes and state, for each, what behaviour would show the sorting was wrong.",
+   "assess_frame": "Did any case sorted by this model behave like the other class?"
+  },
+  "adversary": {
+   "tier": "proven",
+   "one_line": "attacks a common belief and names what would refute the attack",
+   "premise_shape": "<Common belief> is wrong because <mechanism>. It would survive if <specific observation>.",
+   "falsifier": "the belief under attack survives the specific test named",
+   "predict_frame": "State the belief under attack and the specific observation that would vindicate it. An adversary that cannot be refuted by the thing it attacks is not doing its job.",
+   "assess_frame": "Did the attacked belief survive the test this model named?"
+  },
+  "tracer": {
+   "tier": "designed",
+   "one_line": "says how something travels -- which move causes which",
+   "premise_shape": "In <domain>, <event A> moves <event B> before <event C>, via <mechanism>.",
+   "falsifier": "the chain runs in a different order, or skips a named link",
+   "predict_frame": "Trace the propagation path and state the ORDER in which the next links should fire.",
+   "assess_frame": "Did the chain fire in the stated order?"
+  },
+  "timer": {
+   "tier": "designed",
+   "one_line": "says when a phase arrives",
+   "premise_shape": "<Phase> arrives in <window>, signalled by <observable>.",
+   "falsifier": "the phase does not arrive in the stated window",
+   "predict_frame": "Name the phase, the window, and the observable that marks its arrival.",
+   "assess_frame": "Did the phase arrive inside the window?"
+  },
+  "attributor": {
+   "tier": "designed",
+   "one_line": "assigns outcomes to causes",
+   "premise_shape": "<Outcome> was caused by <cause>, not <rival cause>, because <discriminator>.",
+   "falsifier": "the outcome is better explained by a cause the model excluded",
+   "predict_frame": "For each outcome, name the cause AND the leading rival cause, and the observation that discriminates between them.",
+   "assess_frame": "Did the discriminating observation favour the named cause or the rival?"
+  },
+  "finder": {
+   "tier": "designed",
+   "one_line": "surfaces instances others miss",
+   "premise_shape": "Instances of <pattern> exist in <domain> and are findable by <method>.",
+   "falsifier": "it fails to surface an instance that later proves to have been findable",
+   "predict_frame": "Surface candidate instances and state what would show a missed one.",
+   "assess_frame": "Did an instance surface later that this model should have found?"
+  },
+  "generator": {
+   "tier": "designed",
+   "one_line": "produces candidates rather than judgements",
+   "premise_shape": "OPEN QUESTION -- see KINDS.md.",
+   "falsifier": "OPEN. A generator that only produces plausible output is unfalsifiable. Candidate discipline: it must state what it will NOT generate, and be wrong when that appears.",
+   "predict_frame": "Generate candidates AND state the class of thing this model claims it will not produce. That negative claim is the only falsifiable part.",
+   "assess_frame": "Did something appear that this model said it would not generate?",
+   "warning": "This kind has no proven discipline. Building one is research, not scaffolding."
+  },
+  "mirror": {
+   "tier": "designed",
+   "one_line": "models the modeller -- one level up",
+   "premise_shape": "OPEN QUESTION -- see KINDS.md.",
+   "falsifier": "OPEN. Candidate discipline: it predicts a specific revision the author will make, and the author does not make it.",
+   "predict_frame": "State a specific, dated revision you expect the author's own models to undergo.",
+   "assess_frame": "Did the predicted revision occur?",
+   "warning": "This kind has no proven discipline. Building one is research, not scaffolding."
+  }
+ }
+}

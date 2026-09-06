@@ -6,7 +6,31 @@ from __future__ import annotations
 import argparse, json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import json
+
 from harness.fleet import ROOT, MODELS_DIR
+
+KINDS_DIR = Path(__file__).resolve().parent / "kinds"
+
+
+def load_pack(kind: str) -> dict:
+    """The discipline for this kind: premise shape, falsifier, and the question
+    the agentic pass asks.
+
+    Before this, `kind` was a string in model.json that nothing read -- a
+    classifier scaffolded identically to a forecaster, and the difference that
+    actually matters (what would prove it wrong) was left to the author to
+    remember. The engine is shared; the discipline is not.
+    """
+    f = KINDS_DIR / "packs.json"
+    if not f.exists():
+        return {}
+    try:
+        packs = json.loads(f.read_text(encoding="utf-8")).get("packs", {})
+    except ValueError:
+        return {}
+    return packs.get(kind, {})
+
 
 MODEL_TMPL = """# {title} — (v1)
 
@@ -15,9 +39,13 @@ MODEL_TMPL = """# {title} — (v1)
 
 ## Premises
 
+{premise_help}
+
 **P1 — .** (State each load-bearing claim with an honest confidence tier.)
 
 ## Falsifiable consequences (v1)
+
+{falsifier_help}
 
 1. **:** a concrete observable that would count against the model.
 
@@ -60,10 +88,29 @@ def main():
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     rdir = MODELS_DIR / a.slug
     rdir.mkdir(exist_ok=True)
+    pack = load_pack(a.kind)
+    _nl = chr(10)
+    _premise = (pack.get("premise_shape")
+                and ("*Shape for a " + a.kind + ":* `" + pack["premise_shape"] + "`"
+                     + ((_nl * 2 + "*Banned:* " + pack["banned"]) if pack.get("banned") else ""))
+                or "(State each load-bearing claim with an honest confidence tier.)")
+    _fals = (pack.get("falsifier")
+             and ("*What falsifies a " + a.kind + ":* " + pack["falsifier"]
+                  + ((_nl * 2 + "> **" + pack["warning"] + "**") if pack.get("warning") else ""))
+             or "")
     (rdir / "MODEL.md").write_text(
-        MODEL_TMPL.format(title=a.title or a.slug, domain=a.domain, kind=a.kind),
+        MODEL_TMPL.format(title=a.title or a.slug, domain=a.domain, kind=a.kind,
+                          premise_help=_premise, falsifier_help=_fals),
         encoding="utf-8")
-    (rdir / "watch.json").write_text(json.dumps(WATCH_TMPL, indent=1), encoding="utf-8")
+    watch = dict(WATCH_TMPL)
+    if pack.get("predict_frame"):
+        # The frame is what makes the agentic pass KIND-AWARE: a decision-model
+        # is told to ignore stated intentions, a forecaster to demand a date.
+        watch["frame"] = pack["predict_frame"]
+    if pack.get("assess_frame"):
+        watch["assess_frame"] = pack["assess_frame"]
+    watch["kind"] = a.kind
+    (rdir / "watch.json").write_text(json.dumps(watch, indent=1), encoding="utf-8")
     f = ROOT / "fleet.json"
     cfg = json.load(f.open(encoding="utf-8"))
     if a.slug not in cfg["models"]:
