@@ -243,6 +243,11 @@ def check_model(repo: Path) -> list:
 
 
 def main() -> None:
+    # Load .env before any chat() call. Without this the backend
+    # setting in .env is invisible and the suite reports 'no key'
+    # while .env sits there correctly configured.
+    from suites.grade_claims import _load_env
+    _load_env()
     ap = argparse.ArgumentParser(
         description="Check this change still works at every installation level.")
     ap.add_argument("--json", action="store_true")

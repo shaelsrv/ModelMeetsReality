@@ -104,6 +104,11 @@ def review(repo: Path, ask: str, model: str = "", cap: int = 8000) -> str:
 
 
 def main() -> None:
+    # Load .env before any chat() call. Without this the backend
+    # setting in .env is invisible and the suite reports 'no key'
+    # while .env sits there correctly configured.
+    from suites.grade_claims import _load_env
+    _load_env()
     ap = argparse.ArgumentParser(description="Model-assisted review of an "
                                              "untrusted model repo.")
     ap.add_argument("repo")

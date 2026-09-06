@@ -93,6 +93,11 @@ def map_repo(repo):
 
 
 def main():
+    # Load .env before any chat() call. Without this the backend
+    # setting in .env is invisible and the suite reports 'no key'
+    # while .env sits there correctly configured.
+    from suites.grade_claims import _load_env
+    _load_env()
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo")
     a = ap.parse_args()
