@@ -522,6 +522,8 @@ kbd { font-family:"IBM Plex Mono",monospace; background:var(--panel); border:1px
   </div>
   <div class="navgroup"><span class="navlabel">atlas</span>
     <button data-t="entities">Entities</button>
+    <button data-t="timeline">Timeline</button>
+    <button data-t="visuals">Visuals</button>
     <button data-t="map">Map</button>
     <button data-t="garden">Garden</button>
   </div>
@@ -738,6 +740,24 @@ kbd { font-family:"IBM Plex Mono",monospace; background:var(--panel); border:1px
     <kbd>python -m suites.reality_map --export --repo &lt;model&gt;</kbd> — mapcards
     carry aspects, span, mechanism, and record COUNTS only; never claims or
     reasoning. See <kbd>docs/REALITY_MAP.md</kbd> for the federation protocol.</p>
+  </div>
+</section>
+
+<section id="timeline">
+  <div class="card">
+    <h3>Event history</h3>
+    <p class="muted" id="tl-note">loading…</p>
+    <input id="tl-q" placeholder="filter by subject or text…"
+           style="width:100%;max-width:32rem;margin:.6rem 0 1rem">
+    <div id="tl-body"><p class="muted">loading…</p></div>
+  </div>
+</section>
+
+<section id="visuals">
+  <div class="card">
+    <h3>Visual syntheses</h3>
+    <p class="muted" id="vz-cap">checking what this instance can do…</p>
+    <div id="vz-body"><p class="muted">loading…</p></div>
   </div>
 </section>
 
@@ -1684,8 +1704,61 @@ async function loadGloss(){
   relinkAll();
   if (location.hash.startsWith('#g-')) setTimeout(()=>openGloss(location.hash.slice(1)), 250);
 }
+async function loadTimeline(q){
+  let d;
+  try { d = await (await fetch('/api/timeline' + (q ? '?subject='+encodeURIComponent(q) : ''))).json(); }
+  catch(e){ $('#tl-body').innerHTML = '<p class="muted">timeline unavailable</p>'; return; }
+  if (d.error){
+    // 404 carries the command that fixes it. Show it rather than an empty tab.
+    $('#tl-note').textContent = '';
+    $('#tl-body').innerHTML = '<p class="muted">'+esc(d.error)+'</p>';
+    return;
+  }
+  $('#tl-note').textContent = d.events + ' of ' + d.of_total + ' events from ' + d.source
+      + (d.undated ? ' · ' + d.undated + ' undated' : '')
+      + (d.note ? ' — ' + d.note.slice(0,180) : '');
+  $('#tl-body').innerHTML = (d.timeline||[]).map(e =>
+    '<div style="border-bottom:1px solid var(--line);padding:.6rem 0">'
+    + '<code style="color:var(--muted)">' + esc(e.id) + ' · ' + esc(e.date||'undated')
+    + (e.approx ? '~' : '') + '</code><div>' + esc(e.item||'') + '</div>'
+    + '<code style="color:var(--muted)">observed by: ' + esc((e.observers||[]).join(', ')) + '</code>'
+    + '</div>').join('') || '<p class="muted">no events match</p>';
+}
+async function loadVisuals(){
+  try {
+    const c = await (await fetch('/api/capabilities')).json();
+    const l = c.llm || {};
+    $('#vz-cap').textContent = l.live
+      ? ('Generation available — backend: ' + l.backend + ' · ' + (c.generation_cost||''))
+      : ('Generation unavailable — ' + (l.reason || 'no LLM backend configured')
+         + '. Anything already generated is still listed below.');
+  } catch(e){ $('#vz-cap').textContent = ''; }
+  let d;
+  try { d = await (await fetch('/api/visuals')).json(); }
+  catch(e){ $('#vz-body').innerHTML = '<p class="muted">unavailable</p>'; return; }
+  const rows = (d.visuals||[]).map(v =>
+    '<div style="border-bottom:1px solid var(--line);padding:.6rem 0">'
+    + '<a href="' + esc(v.url) + '" target="_blank"><b>' + esc(v.title) + '</b></a>'
+    + '<div><code style="color:var(--muted)">' + (v.nodes==null?'':v.nodes+' nodes')
+    + (v.dropped ? ' · ' + v.dropped + ' dropped for unverifiable refs' : '')
+    + '</code></div></div>').join('');
+  $('#vz-body').innerHTML = (rows || '<p class="muted">none generated yet</p>')
+    + '<p class="muted" style="margin-top:1rem">' + esc(d.note||'') + '</p>'
+    + '<p class="muted">Make one: <code>' + esc(d.how||'') + '</code> — views: '
+    + esc((d.views||[]).join(', ')) + '</p>';
+}
 loadGardenPage(); loadHome(); loadVerdict(); loadModels(); loadTasks(); loadAssess(); loadEvents(); loadGloss(); loadBrainstorm(); loadMap();
+loadTimeline(); loadVisuals();
 loadEntities(); loadMindmap();
+{
+  // Debounced so typing does not fire a request per keystroke.
+  let tlT = null;
+  const box = document.getElementById('tl-q');
+  if (box) box.addEventListener('input', () => {
+    clearTimeout(tlT);
+    tlT = setTimeout(() => loadTimeline(box.value.trim()), 250);
+  });
+}
 // live delivery: poll for queued work flipping to results (skip when tab hidden)
 let pollBusy = false;
 setInterval(async () => {
