@@ -199,11 +199,81 @@ def check_backends() -> list:
     return out
 
 
+def check_model(repo: Path) -> list:
+    """Is ONE model usable at every level? Works on a stranger's repo too.
+
+    The instance checks above ask "does this installation work". This asks
+    "would this model work for someone who has only level 1" — which is the
+    question that matters for a Garden listing, where the reader may have no
+    Python at all.
+
+    Deliberately does not open the network or run anything from the repo: it
+    reads files. A model being CHECKED is not a model being TRUSTED.
+    """
+    out, name = [], repo.name
+    if not (repo / "MODEL.md").exists():
+        return [_r("model", f"{name}: MODEL.md", FAIL, "not a model repo")]
+
+    md = (repo / "MODEL.md").read_text(encoding="utf-8", errors="replace")
+    out.append(_r("model", f"{name}: falsifiable consequence",
+                  OK if "## Falsifiable consequences" in md else FAIL,
+                  "" if "## Falsifiable consequences" in md
+                  else "unfalsifiable — not listable"))
+    has_del = ("deletion clause" in md.lower() or "retires to notation" in md.lower())
+    out.append(_r("model", f"{name}: deletion clause", OK if has_del else FAIL))
+
+    # Level 1 is the whole point of these two files.
+    use = repo / "USE.md"
+    out.append(_r("model", f"{name}: USE.md (level 1)",
+                  OK if use.exists() else FAIL,
+                  "" if use.exists() else "cannot be run without tooling"))
+    if use.exists():
+        fenced = "QUOTED VERBATIM" in use.read_text(encoding="utf-8", errors="replace")
+        out.append(_r("model", f"{name}: USE.md fenced", OK if fenced else FAIL,
+                      "" if fenced else "author text unfenced — INJECTABLE when "
+                                        "pasted into an assistant"))
+    out.append(_r("model", f"{name}: TASKS.md (scheduled)",
+                  OK if (repo / "TASKS.md").exists() else FAIL))
+    out.append(_r("model", f"{name}: model.json (card)",
+                  OK if (repo / "model.json").exists() else FAIL))
+    lic = any((repo / n).exists() for n in
+              ("LICENSE", "LICENSE-CODE", "LICENSE.md", "LICENSE.txt"))
+    out.append(_r("model", f"{name}: licence", OK if lic else FAIL))
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(
         description="Check this change still works at every installation level.")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--model", metavar="PATH",
+                    help="check ONE model repo (works on a stranger's clone)")
+    ap.add_argument("--all-models", action="store_true",
+                    help="check every model this instance holds")
     a = ap.parse_args()
+
+    if a.model or a.all_models:
+        repos = ([Path(a.model)] if a.model else
+                 sorted(p for p in MODELS_DIR.iterdir()
+                        if p.is_dir() and (p / "MODEL.md").exists()))
+        rows = [r for repo in repos for r in check_model(repo)]
+        if a.json:
+            print(json.dumps(rows, indent=1))
+            return
+        by_repo: dict = {}
+        for r in rows:
+            by_repo.setdefault(r["check"].split(":")[0], []).append(r)
+        for slug, rs in by_repo.items():
+            bad = [x for x in rs if x["status"] == FAIL]
+            print(f"  {slug:<26} {'ok' if not bad else str(len(bad)) + ' FAIL'}")
+            for x in bad:
+                print(f"      {x['check'].split(': ',1)[1]}"
+                      + (f" — {x['note']}" if x["note"] else ""))
+        n_bad = sum(1 for r in rows if r["status"] == FAIL)
+        print(f"\n  {len(by_repo)} model(s), {n_bad} failing check(s)")
+        if n_bad:
+            sys.exit(1)
+        return
 
     rows = (check_assistant() + check_local() + check_docker() + check_backends())
     if a.json:

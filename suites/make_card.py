@@ -214,6 +214,22 @@ def build(slug: str, author: str, repo_url: str | None,
     # Does this model ship a one-prompt install? It changes what a reader with
     # no tooling can do with it, so the card says so rather than making them
     # clone to find out.
+    # A licence belongs in the SOURCE, not only in the export. publish_model
+    # generated one at push time, so the pushed repos had a LICENSE and the
+    # local ones never did — and a model imported from disk, or reviewed in the
+    # sandbox, carried no terms at all. Found by the per-model compat check.
+    if not any((repo / n).exists() for n in
+               ("LICENSE", "LICENSE-CODE", "LICENSE.md", "LICENSE.txt")):
+        (repo / "LICENSE").write_text(
+            f"{license_id}\n\n"
+            f"This model — its premises, claims and record — may be shared and\n"
+            f"adapted for any purpose, including commercially, provided\n"
+            f"attribution is given.\n\n"
+            f"Full text: https://creativecommons.org/licenses/by/4.0/\n"
+            if license_id.startswith("CC-BY") else
+            f"{license_id}\n\nSee the licence text for terms.\n",
+            encoding="utf-8")
+
     card["use"] = (repo / "USE.md").exists()
     if not card["use"]:
         warn.append("no USE.md — a reader without Python or a local model "

@@ -115,6 +115,22 @@ def publish(slug: str, owner: str, private: bool, dry: bool) -> dict:
                 # is still worth publishing, and the audit flags what is missing.
                 print(f"      note: could not regenerate {fname} ({e})")
 
+    # Compatibility gate. Publishing is where a model stops being ours and
+    # starts being someone else's problem, so it is checked against every
+    # installation level here — most importantly level 1, the reader with no
+    # tooling who can only paste. Blocking, because a published model missing
+    # USE.md or its fence is broken for the largest audience and nothing
+    # downstream would notice.
+    if not dry:
+        try:
+            from suites.compat_check import check_model
+            bad = [f for f in check_model(src) if f["status"] == "FAIL"]
+            if bad:
+                return {"model": slug, "skipped": "compat: " + "; ".join(
+                    f["check"].split(": ", 1)[-1] for f in bad)}
+        except ImportError:
+            pass
+
     # Publication is the irreversible step, so the legitimacy gate runs HERE
     # rather than only at launch. The other gates do not catch this: make_card
     # called unwritten scaffolds "listable" and validate_card passed them,
