@@ -37,8 +37,15 @@ from harness.fleet import ROOT, MODELS_DIR  # noqa: E402
 LEDGERS = ("predict/ledger.json", "predict/live_ledger.json",
            "signals/signal_ledger.json")
 
+# decision-model added 2026-09-06: derives a person's DECISION FUNCTION from
+# their completed, announced choices -- given a recurring situation, which option
+# class do they take when options conflict. None of the other ten does this;
+# attributor is the nearest and it attributes outcomes to causes, not choices to
+# a chooser. Premises must be revealed preference orderings backed by 2+ cited
+# decisions, and the falsifier is always a future choice that breaks the ordering.
 KINDS = ("forecaster", "classifier", "tracer", "finder", "tracker",
-         "generator", "attributor", "adversary", "mirror", "timer")
+         "generator", "attributor", "adversary", "mirror", "timer",
+         "decision-model")
 
 
 def _first(pattern: str, text: str, group: int = 1, dotall: bool = False) -> str | None:
