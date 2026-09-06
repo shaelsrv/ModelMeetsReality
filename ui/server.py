@@ -103,6 +103,48 @@ class _LiveRepos(list):
 REPOS = _LiveRepos()
 
 
+def _graded_claims() -> list:
+    """Every graded claim across the fleet's model ledgers.
+
+    /api/verdict originally read ONLY trajectory/trajectory.jsonl, which is
+    written by the trajectory suite. A claim graded directly in a model's
+    predict/ledger.json -- which is what model_watch --assess writes, and what a
+    human writes when they grade one by hand -- was invisible to the cockpit.
+
+    That is the wrong failure for this product: the whole pitch is "watch the
+    grades land", so the first grade landing and showing nothing is precisely
+    the promise being broken. Read both.
+    """
+    out = []
+    try:
+        fleet = json.loads((ROOT / "fleet.json").read_text(encoding="utf-8"))
+    except Exception:
+        return out
+    for slug in fleet.get("models", []):
+        p = ROOT.parent / slug / "predict" / "ledger.json"
+        if not p.exists():
+            continue
+        try:
+            led = json.loads(p.read_text(encoding="utf-8"))
+        except ValueError:
+            continue
+        for c in led.get("predictions", []):
+            if c.get("status") != "graded":
+                continue
+            out.append({
+                "model": slug,
+                "claim": str(c.get("claim", ""))[:300],
+                "verdict": c.get("verdict"),
+                "confidence": c.get("confidence"),
+                "made_on": c.get("made_on"),
+                "resolve_by": c.get("resolve_by"),
+                "graded_on": c.get("graded_on"),
+                "note": str(c.get("grading_note", ""))[:600],
+            })
+    out.sort(key=lambda r: (r.get("graded_on") or "", r.get("model") or ""))
+    return out
+
+
 def ledger_counts(repo: Path):
     n_open = n_res = 0
     for rel in ("predict/ledger.json", "predict/live_ledger.json",
@@ -2114,6 +2156,41 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, history(name))
             except Exception as e:
                 return self._send(500, {"error": str(e)[:200]})
+        if p == "/api/timeline":
+            # The event history assembled by suites.event_history: every completed
+            # decision the models observed while running, merged and dated.
+            #
+            # Path-resolved by SEARCHING for the file rather than naming a
+            # directory. Hardcoding one ("f1-events") is the same bug as the
+            # hardcoded instance name fixed twice already -- it works for whoever
+            # wrote it and silently shows nothing to everyone else.
+            found = None
+            for cand in sorted(ROOT.parent.glob("*/timeline.json")):
+                found = cand
+                break
+            if not found:
+                return self._send(404, {"error": "no event history yet — run "
+                                                 "python -m suites.event_history --build"})
+            try:
+                data = json.loads(found.read_text(encoding="utf-8"))
+            except ValueError:
+                return self._send(500, {"error": f"{found.name} is not valid JSON"})
+            q = (parse_qs(urlparse(self.path).query).get("subject") or [""])[0].lower()
+            tl = data.get("timeline", [])
+            if q:
+                tl = [e for e in tl
+                      if q in str(e.get("item", "")).lower()
+                      or q in " ".join(e.get("observers", [])).lower()]
+            return self._send(200, {
+                "source": found.parent.name,
+                "events": len(tl),
+                "of_total": len(data.get("timeline", [])),
+                "corroborated": data.get("corroborated"),
+                "undated": data.get("undated"),
+                # The corpus-bias note travels with the data, not in a README the
+                # reader of this endpoint will never open.
+                "note": data.get("note", ""),
+                "timeline": tl})
         if p == "/api/mindmap":
             f = TOOLS / "entity-atlas" / "mindmap.json"
             if not f.exists():
@@ -2262,13 +2339,29 @@ class H(BaseHTTPRequestHandler):
                          for r in (lambda d: d.get("predictions", d) if isinstance(d, dict) else d)(
                              json.load((TOOLS / repo / rel).open(encoding="utf-8")))
                          if r.get("status", "open") == "open")
+            # Claims graded directly in a model's ledger -- what model_watch
+            # --assess writes, and what a human writes grading one by hand. These
+            # were invisible here, so the first real verdict the system ever
+            # produced showed nothing, under a card saying nothing had been graded.
+            ledger_graded = _graded_claims()
+            lg_hits = sum(1 for r in ledger_graded if r.get("verdict") == "hit")
+            lg_miss = sum(1 for r in ledger_graded if r.get("verdict") == "miss")
+            total_graded = len(rows) + len(ledger_graded)
             return self._send(200, {
-                "graded_total": len(rows), "graded_live": live, "open": n_open,
+                "graded_total": total_graded, "graded_live": live + len(ledger_graded),
+                "open": n_open,
                 "per_model": per, "earned": earned, "lucky": lucky, "other": other,
                 "miss_why": miss_why, "attribution": att,
+                "ledger_graded": ledger_graded,
+                "ledger_hits": lg_hits, "ledger_misses": lg_miss,
                 "honest": ("No live claim has been graded yet. Everything below is "
                            "backtest, which cannot tell you whether YOU are any good — "
-                           "only that the machinery runs.") if live == 0 else ""})
+                           "only that the machinery runs.")
+                          if (live == 0 and not ledger_graded) else
+                          (f"{len(ledger_graded)} claim(s) graded in model ledgers: "
+                           f"{lg_hits} hit, {lg_miss} miss. A miss that confirms its own "
+                           f"premise still counts as a miss here.")
+                          if live == 0 else ""})
         if p == "/api/garden-page":
             try:
                 sys.path.insert(0, str(UI))
