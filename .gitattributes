@@ -1,0 +1,10 @@
+# Shell scripts and Dockerfiles MUST keep LF endings.
+#
+# Git's autocrlf on Windows was rewriting scripts/*.sh to CRLF, which makes bash
+# fail with `syntax error near unexpected token $'in\r'` — and the same file
+# then breaks inside a Linux container, where every one of these actually runs.
+# The compat checker caught it; without this line it would come back on the next
+# fresh clone.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf

@@ -14,7 +14,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Convert $HERE first: a POSIX "/f/tools/..." handed to Windows Python becomes
-# the nonsense path "	ools", which the daemon then rejects.
+# the nonsense path "(a mangled path)", which the daemon then rejects.
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*) HERE="$(cd "$HERE" && pwd -W)" ;;
 esac
