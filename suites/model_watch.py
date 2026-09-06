@@ -104,6 +104,27 @@ def cmd_predict(repo, model, horizon):
     model = model or cfg.get("default_model", "openai/gpt-4o")
     today = datetime.date.today().isoformat()
     resolve_by = (datetime.date.today() + datetime.timedelta(days=horizon)).isoformat()
+    # new_model scaffolds watch.json with a literal placeholder entity. Running
+    # against it burns a minutes-long web search per entity and produces either
+    # nothing (the model correctly refuses to invent observations about a
+    # nonexistent target) or claims about whatever real thing it substituted on
+    # its own initiative -- which is worse, because those look fine. Caught on a
+    # 10-model install test where 2 refused and 8 quietly improvised.
+    placeholders = [e for e in cfg.get("entities", [])
+                    if str(e.get("id", "")).lower() == "example"
+                    or "example entity" in str(e.get("name", "")).lower()
+                    or str(e.get("watch", "")).strip() == "what to observe about it"]
+    if placeholders:
+        names = ", ".join(str(e.get("name")) for e in placeholders)
+        raise SystemExit(
+            repo + "/watch.json still has the scaffold placeholder (" + names + ")."
+            + chr(10)
+            + "  Edit entities[] to name what this model actually watches, then rerun."
+            + chr(10)
+            + "  Running as-is spends a web search per entity and returns nothing"
+            + chr(10)
+            + "  usable -- or worse, claims about a target you did not choose.")
+
     led = load_ledger(lpath)
     learn = ""
     if led["learnings"]:
@@ -119,7 +140,18 @@ def cmd_predict(repo, model, horizon):
         r = chat(model + ":online", [{"role": "user", "content": p}], temperature=0.4, max_tokens=2200)
         d = parse_json(r.text) if not r.error else None
         if not d or not d.get("predictions"):
-            print(f"      ! {r.error or 'unparseable'}"); continue
+            why = r.error or ("no 'predictions' key" if d else "unparseable")
+            print("      ! " + str(why))
+            # Keep the raw reply. A search pass costs minutes and money, and
+            # "unparseable" with the evidence discarded cannot be diagnosed
+            # afterwards -- which is what happened on the first install test.
+            if r.text:
+                dump = os.path.join(os.path.dirname(lpath), "failed")
+                os.makedirs(dump, exist_ok=True)
+                f = os.path.join(dump, today + "-" + str(e["id"]) + ".txt")
+                open(f, "w", encoding="utf-8").write("# " + str(why) + chr(10)*2 + r.text)
+                print("        raw reply kept: " + f)
+            continue
         print(f"      read: {d.get('model_read','')[:100]}")
         for pred in d["predictions"]:
             led["predictions"].append({
