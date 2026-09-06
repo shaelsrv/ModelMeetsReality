@@ -12,13 +12,14 @@ hides them.
 |---|---|
 | Install per `SETUP.md` | works, after the fixes below |
 | Models scaffolded | 10, each its own git repo, all registered in `fleet.json` |
-| Models producing claims by own search | **9 / 10** |
-| Dated claims registered | 18 (confidence 0.25–0.85, mean 0.62) |
+| Models producing claims by own search | **10 / 10** |
+| Dated claims registered | 20 (confidence 0.25–0.85, mean 0.61) |
 | Compatibility levels passing | **3 / 3** (assistant, local, docker) |
 | End-to-end to a listable card | yes — passes the Garden's licence gate |
 
-The tenth was still mid-search when this was written; it had already failed and
-been fixed once (see defect 4), so the honest number is 9 confirmed.
+All ten, after defect 3 was fixed and the two placeholder repos were given real
+entities. Before that fix the same run scored 8 apparent successes — and the two
+"failures" were the only models behaving correctly.
 
 ## What "its own reasoning" looked like
 
@@ -38,6 +39,12 @@ one prompt with the domain swapped:
 - **clinic-throughput** used medical-office-building occupancy (92.7%, completions
   down 26%) as evidence that estate rather than clinician-hours is the binding
   constraint — exactly its P1.
+- **open-source-decay**, pointed at `psf/requests`, found evidence that **inverts
+  its own P2**: triage stayed fast (hours to days) while human-authored commits
+  went to zero — the reverse of "response latency degrades before commit frequency
+  falls". It reported the inversion rather than reading the data as support, and
+  set confidence to 0.35. A model finding its own premise probably wrong, on its
+  first run, is the strongest single result here.
 
 Self-criticism and calibration, not confirmation. That is the behaviour the
 format is supposed to produce, and it survived a clean install.
@@ -98,7 +105,6 @@ Both tiers behave as documented.
   resolve date (2026-10-21) and nothing has resolved.
 - **Local backends untested** — Ollama and LM Studio were not running, so those
   rows skipped rather than passed.
-- One model's final run had not returned when this was written.
 
 ## Reproducing
 
