@@ -123,3 +123,37 @@ python -m suites.tags --set my-model --scope national --inputs public-web \
     --sensitivity neutral --effort hours
 python -m suites.make_card --model my-model --author you
 ```
+
+---
+
+## Published, and re-verified from the published copy — 2026-09-06
+
+`github.com/shaelsrv/copilot-template`, **private**, 88 files, master.
+
+Verifying meant cloning it back into an empty directory and running a stranger's
+install against the clone rather than the working tree:
+
+- `compat_check`: local suites and both Docker tiers pass from the clone.
+- `new_model` scaffolds a sibling repo and registers it.
+- The placeholder guard fires from the published copy — `watch.json` still has
+  the scaffold entity, refused before a search is spent.
+- No `.env` in the clone; `.env.example` only.
+
+**Two defects found while reading the tree as a stranger would receive it**, both
+fixed before the push:
+
+- `model_watch` hardcoded `cwd` to a directory literally named `meta-copilot` for
+  post-analysis. `SETUP.md` tells users to name their instance `my-copilot`, so
+  post-analysis **silently failed on every install that followed the
+  instructions**. Now resolves to this repo, whatever it is called.
+- The harness sent a fixed domain as `HTTP-Referer` on every API call. Optional
+  header, and it would have gone out from anybody else's install. Env-overridable,
+  empty by default.
+
+And one bug from an earlier port, caught by running `compat_check` on the test
+instance rather than assuming the port was clean: `_is_local` had been renamed and
+made argument-less, but `compat_check` needs to test candidate URLs it is not
+configured with. Both forms now exist.
+
+**Pre-publication checks:** `legitimacy_audit` clean (0 BLOCK, 0 FLAG); no
+key-like strings anywhere in the full git history, not just the working tree.
