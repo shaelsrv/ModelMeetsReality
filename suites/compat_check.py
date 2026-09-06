@@ -126,7 +126,7 @@ def check_docker() -> list:
                              ("agent", "docker/agent.Dockerfile")):
         out.append(_r("docker", f"{dockerfile} present",
                       OK if (ROOT / dockerfile).exists() else FAIL))
-    for name in ("copilot-sandbox:latest", "copilot-agent:latest"):
+    for name in ("mmr-sandbox:latest", "mmr-agent:latest"):
         r = subprocess.run(["docker", "image", "inspect", name],
                            capture_output=True, text=True, timeout=120)
         out.append(_r("docker", f"image {name}",

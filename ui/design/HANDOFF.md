@@ -1,6 +1,6 @@
 # Model Cockpit v3 — design handoff
 
-Drop this folder into `meta-copilot/ui/design/`. `model-cockpit-v3.html` opens offline (fonts + runtime inlined). `source/` is the editable design component.
+Drop this folder into your main instance's `ui/design/`. `model-cockpit-v3.html` opens offline (fonts + runtime inlined). `source/` is the editable design component.
 
 ## Shell
 - Sidebar nav (216px, sticky), 5 groups: Today / Fleet / Feed / Atlas / Reference. Collapses to a wrapping top bar < 860px.

@@ -74,7 +74,7 @@ if ! command -v docker >/dev/null 2>&1; then
   exit $?
 fi
 
-IMAGE="copilot-sandbox:latest"
+IMAGE="mmr-sandbox:latest"
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   echo "==> building $IMAGE (first run only)"
   docker build -q -f "$HERE/docker/sandbox.Dockerfile" -t "$IMAGE" "$HERE" >/dev/null

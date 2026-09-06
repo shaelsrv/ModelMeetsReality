@@ -31,7 +31,7 @@ import urllib.request
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
-UA = "Mozilla/5.0 (compatible; meta-copilot model-import/1.0)"
+UA = "Mozilla/5.0 (compatible; MMR model-import/1.0)"
 
 
 @dataclass

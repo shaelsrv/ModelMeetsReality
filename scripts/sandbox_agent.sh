@@ -90,7 +90,7 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-IMAGE="copilot-agent:latest"
+IMAGE="mmr-agent:latest"
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   echo "==> building $IMAGE (first run only)"
   docker build -q -f "$HERE/docker/agent.Dockerfile" -t "$IMAGE" "$HERE" >/dev/null

@@ -15,7 +15,7 @@ audience's lived pressure structure, not topic. Three steps, one report:
 Every output is a candidate (MODEL.md consequence 2 is untested); reports say so.
 
   python -m suites.audience_find --request "a public ledger of sealed predictions graded against reality"
-  python -m suites.audience_find --file ../copilot-template/README.md
+  python -m suites.audience_find --file ../ModelMeetsReality/README.md
 """
 from __future__ import annotations
 

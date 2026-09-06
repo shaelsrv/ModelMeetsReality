@@ -715,12 +715,12 @@ kbd { font-family:"IBM Plex Mono",monospace; background:var(--panel); border:1px
   <div class="card"><h3>Other ways in</h3>
     <p class="muted" style="line-height:1.8">
     · Headless one-shot: <kbd>claude -p "your instruction"</kbd> from
-    <kbd>F:\\tools\\meta-copilot</kbd> — a fresh session with repo context, prints the
+    <kbd>your main instance</kbd> — a fresh session with repo context, prints the
     result, exits. This is what the suites themselves use as the LLM backend.<br>
     · Interactive: <kbd>claude</kbd> in the repo — the full experience this cockpit
     mirrors.<br>
     · Scheduled: the weekly grading loop already runs headless via the Windows task
-    <kbd>meta-copilot-grading-loop</kbd> — no session needed.</p>
+    <kbd>mmr-grading-loop</kbd> — no session needed.</p>
   </div>
 </section>
 

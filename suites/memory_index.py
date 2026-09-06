@@ -222,12 +222,12 @@ def fragments(repo: Path) -> list[dict]:
 
 
 def meta_fragments() -> list[dict]:
-    """Fleet-level artifacts that live in meta-copilot, not in a model repo."""
+    """Fleet-level artifacts that live in the main instance, not in a model repo."""
     out = []
 
     def add(kind, text, meta=None):
         for i, part in enumerate(chunk_text(text)):
-            out.append({"repo": "meta-copilot", "kind": kind, "text": part,
+            out.append({"repo": ROOT.name, "kind": kind, "text": part,
                         **({"chunk": i} if i else {}), **(meta or {})})
 
     bdir = ROOT / "brainstorms"
@@ -273,11 +273,14 @@ def build(only: str | None = None) -> dict:
             continue
         if only and p.name != only:
             continue
-        if (p / "MODEL.md").exists() or p.name == "meta-copilot":
+        # The main instance is THIS repo, whatever the user named its directory.
+        # Matching on a hardcoded name meant the fleet-level artifacts were
+        # invisible to any install that followed SETUP.md and used another.
+        if (p / "MODEL.md").exists() or p.resolve() == ROOT:
             targets.append(p)
     stats = {}
     for repo in targets:
-        frs = meta_fragments() if repo.name == "meta-copilot" else fragments(repo)
+        frs = meta_fragments() if repo.resolve() == ROOT else fragments(repo)
         if not frs:
             continue
         idx_f = repo / INDEX_NAME

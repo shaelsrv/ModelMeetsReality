@@ -41,8 +41,8 @@ Two images, deliberately unequal:
 
 | | network | credential | model |
 |---|---|---|---|
-| `copilot-sandbox` | **none** | none | none |
-| `copilot-agent` | on | one | one |
+| `mmr-sandbox` | **none** | none | none |
+| `mmr-agent` | on | one | one |
 
 What must hold: both Dockerfiles present, both wrapper scripts valid **as
 `bash` reads them** (see the line-endings trap below), and the import sandbox's

@@ -1,9 +1,17 @@
-# Copilot Template — a model-research harness, clean
+# ModelMeetsReality (MMR) — the engine
 
-A reusable instance of the model-copilot pattern: build falsifiable models of anything,
-run them as forecasting instruments against reality, grade them on schedule, and keep a
-version-attributed trajectory of how each model performs. This template ships ALL the
-machinery and NO data: instantiate it, add your own models, accumulate your own record.
+Build falsifiable models of anything, run them as instruments against reality, grade
+them on a date you set in advance, and keep a version-attributed record of how each one
+performs. This repo ships ALL the machinery and NO data: copy it, add your own models,
+accumulate your own record.
+
+A **model** here is not neural weights. It is a short document stating premises, a
+mechanism, at least one falsifiable consequence with a date, and a deletion clause
+naming when its author would retire it. The engine scaffolds those, runs them against
+live sources, and grades them when the date arrives.
+
+Runs three ways — pasted into an assistant with no install, as suites on your machine,
+or in a container. See `docs/COMPATIBILITY.md`.
 
 ## Start here (five minutes)
 

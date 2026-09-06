@@ -15,7 +15,7 @@ your-workspace/
 ## 1. Copy the repo → make it your main
 
 ```bash
-cp -r copilot-template my-copilot        # or: git clone <template-url> my-copilot
+cp -r ModelMeetsReality my-copilot        # or: git clone <template-url> my-copilot
 cd my-copilot
 git config --global --add safe.directory "$PWD"          # if git says "dubious ownership"
 git init && git add -A && git commit -m "main instance"   # version your engine from day one

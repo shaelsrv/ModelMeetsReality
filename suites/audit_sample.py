@@ -13,7 +13,7 @@ Sampling is seeded from the asof date, so the sheet is reproducible and cannot b
 quietly re-rolled until a flattering sample appears.
 
   python -m suites.audit_sample --asof 2026-10-06 --k 15
-  # -> meta-copilot/audits/audit_2026-10-06.md  (human fills VERDICT column)
+  # -> <main-instance>/audits/audit_2026-10-06.md  (human fills VERDICT column)
   python -m suites.audit_sample --score audits/audit_2026-10-06.md
   # -> compares filled column vs machine verdicts, reports disagreement rate
 """
