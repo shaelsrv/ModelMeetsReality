@@ -17,6 +17,7 @@ your-workspace/
 ```bash
 cp -r copilot-template my-copilot        # or: git clone <template-url> my-copilot
 cd my-copilot
+git config --global --add safe.directory "$PWD"          # if git says "dubious ownership"
 git init && git add -A && git commit -m "main instance"   # version your engine from day one
 cp .env.example .env
 ```
