@@ -60,9 +60,55 @@ def check_schema(card: dict) -> list:
         if leaky in card:
             out.append(("FAIL", "privacy",
                         f"card carries '{leaky}' — cards are counts only, never content"))
-    if not card.get("license"):
-        out.append(("WARN", "licence", "no license field — others cannot know if they may redistribute"))
+    ok, why = _licence_check(card.get("license", ""))
+    if not ok:
+        # FAIL, not WARN. The Garden refuses to list a card that fails this, so a
+        # WARN here would let an author pass locally and be silently rejected at
+        # build — spec-vs-tooling drift, which is the thing this file exists to
+        # catch rather than create.
+        out.append(("FAIL", "licence", why))
     return out
+
+
+# Mirrors model-garden/build/licenses.py. Duplicated because that lives in a
+# different repo and this suite must run standalone in a stranger's checkout;
+# if you change one, change both. The Garden's copy is authoritative.
+_LICENCE_OK = {
+    "CC-BY-4.0", "CC-BY-SA-4.0", "CC0-1.0", "MIT", "APACHE-2.0",
+    "BSD-3-CLAUSE", "BSD-2-CLAUSE", "GPL-3.0", "GPL-2.0", "AGPL-3.0",
+    "LGPL-3.0", "UNLICENSE",
+}
+
+
+def _licence_norm(value: str) -> str:
+    import re
+    s = (value or "").strip().upper()
+    s = re.sub(r"^LICEN[CS]ED UNDER\s+", "", s)
+    s = re.sub(r"\s+LICEN[CS]E$", "", s).strip()
+    s = re.sub(r"[\s_]+", "-", s)
+    s = s.replace("CREATIVE-COMMONS", "CC").replace("--", "-").strip("-")
+    s = re.sub(r"^APACHE-?2(\.0)?$", "APACHE-2.0", s)
+    s = re.sub(r"^(A?GPL|LGPL)-?([23])(\.0)?(-OR-LATER|\+)?$", r"-.0", s)
+    s = re.sub(r"^CC-?BY-?4(\.0)?$", "CC-BY-4.0", s)
+    s = re.sub(r"^CC-?BY-?SA-?4(\.0)?$", "CC-BY-SA-4.0", s)
+    s = re.sub(r"^CC-?0(-1\.0)?$", "CC0-1.0", s)
+    s = re.sub(r"^BSD-?([23])(-CLAUSE)?$", r"BSD--CLAUSE", s)
+    return s
+
+
+def _licence_check(value: str):
+    import re
+    if not (value or "").strip():
+        return False, ("no license field — the Garden cannot list a model whose "
+                       "readers do not know if they may use, clone or fork it")
+    key = _licence_norm(value)
+    if key in _LICENCE_OK:
+        return True, ""
+    if re.search(r"\bN[CD]\b|NONCOMMERCIAL|NODERIV", key):
+        return False, (f"licence '{value}' restricts commercial use or derivatives; "
+                       f"the Garden's fork-and-import mechanics require both")
+    return False, (f"licence '{value}' is not listable. It must permit redistribution "
+                   f"AND derivatives: {', '.join(sorted(_LICENCE_OK))}")
 
 
 def check_model_doc(repo: Path) -> list:
