@@ -172,7 +172,7 @@ def _probe(base: str) -> list:
 
 def check_backends() -> list:
     out = []
-    from harness.openrouter import _is_local_base as _is_local
+    from harness.openrouter import _is_local
 
     out.append(_r("backend", "claude-code CLI",
                   OK if shutil.which(os.environ.get("CLAUDE_CODE_BIN", "claude"))

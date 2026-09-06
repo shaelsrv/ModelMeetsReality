@@ -112,7 +112,10 @@ def chat(
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
         # OpenRouter asks for these for attribution/ranking; harmless if unset.
-        "HTTP-Referer": "https://emergencemachine.com",
+        # Attribution headers are OPTIONAL and were shipping a specific domain on
+        # every call made from anyone else's install. Overridable, defaulting
+        # to nothing identifying.
+        "HTTP-Referer": os.environ.get("OPENROUTER_REFERER", ""),
         "X-Title": "Copilot Reality Benchmark",
     }
 
@@ -275,10 +278,20 @@ def _chat_claude_code(model, messages, *, max_tokens, timeout, retries) -> "Chat
 _chat_openrouter = chat
 
 
-def _is_local_base() -> bool:
-    b = os.environ.get("OPENROUTER_BASE", BASE).lower()
+def _is_local(base: str) -> bool:
+    """Does this base URL point at something on the user's own machine?
+
+    Takes the URL rather than reading the environment, because compat_check needs
+    to test candidate URLs it is not currently configured with.
+    """
+    b = (base or "").lower()
     return any(h in b for h in ("localhost", "127.0.0.1", "0.0.0.0", "[::1]",
                                 "host.docker.internal", "ollama", "lmstudio"))
+
+
+def _is_local_base() -> bool:
+    """The configured base, for the dispatcher's degradation branch."""
+    return _is_local(os.environ.get("OPENROUTER_BASE", BASE))
 
 
 def chat(model, messages, *, temperature=0.3, max_tokens=2400, tools=None,

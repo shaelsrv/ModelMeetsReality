@@ -34,6 +34,8 @@ from harness.openrouter import chat
 from harness.actors import parse_json
 
 TOOLS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+# This repo — the main instance, whatever the user named its directory.
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 PREDICT_PROMPT = """You have LIVE WEB ACCESS. Today is {today}. You are running the model below as a
 forecasting instrument. {frame}
@@ -222,7 +224,11 @@ def _post_analysis(repo):
         if not suite:
             return
         r = subprocess.run([sys.executable, "-m", f"suites.{suite}", "--repo", repo],
-                           cwd=os.path.join(TOOLS, "meta-copilot"), timeout=900,
+                           # The main instance is THIS repo, whatever the user named it.
+                           # Hardcoding a directory name meant post_analysis
+                           # silently failed on every install that followed
+                           # SETUP.md and used a different one.
+                           cwd=str(ROOT), timeout=900,
                            capture_output=True, text=True)
         for line in (r.stdout or "").strip().splitlines():
             print("  " + line)
