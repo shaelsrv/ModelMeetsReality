@@ -15,12 +15,21 @@ your-workspace/
 ## 1. Copy the repo → make it your main
 
 ```bash
-cp -r ModelMeetsReality my-copilot        # or: git clone <template-url> my-copilot
+git clone https://github.com/shaelsrv/ModelMeetsReality my-copilot
 cd my-copilot
+rm -rf .git                                              # detach from the engine's history
 git config --global --add safe.directory "$PWD"          # if git says "dubious ownership"
 git init && git add -A && git commit -m "main instance"   # version your engine from day one
 cp .env.example .env
 ```
+
+**Why `rm -rf .git`.** A fresh clone already IS a git repo pointing at the
+engine, so without this the `git init` does nothing ("nothing to commit"), your
+main keeps the engine's whole history, and — the part that bites — `origin`
+still points at the engine repo. A later `git push` would send your private
+premises there. Deleting `.git` first makes your main genuinely yours: one
+initial commit, no remote. Same applies if you `cp -r` a copy instead of
+cloning — that copies `.git` too.
 
 Your main is private infrastructure. Keeping it (and every model repo) **self-hosted,
 local and private** is the recommended default — honesty is easiest where being wrong

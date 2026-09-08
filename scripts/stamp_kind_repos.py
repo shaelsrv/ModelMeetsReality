@@ -91,6 +91,7 @@ And when a claim comes due:
 ```bash
 git clone {ENGINE_URL} my-copilot   # the engine (anonymous clone, no gh CLI needed)
 cd my-copilot
+rm -rf .git               # detach: a clone still points at the engine's remote
 git config --global --add safe.directory "$PWD"   # if git says "dubious ownership"
 git init && git add -A && git commit -m "main instance"
 cp .env.example .env      # set OPENROUTER_API_KEY, or LLM_BACKEND=claude-code
@@ -106,6 +107,11 @@ python -m suites.model_watch --repo my-model --predict
 The engine refuses to run against the scaffold placeholder, on purpose: running
 it as-is spends a web search and returns either nothing or claims about a target
 you did not choose.
+
+`rm -rf .git` matters: a fresh clone is already a git repo whose `origin` is the
+engine, so without it the `git init` is a no-op and a later `git push` would send
+your private premises to the engine repo. Your main should be yours — one initial
+commit, no remote.
 
 ## Engine
 
@@ -137,10 +143,14 @@ def main() -> None:
             json.dumps({"kind": kind, "engine": ENGINE_URL, "engine_commit": commit,
                         **pack}, indent=1, ensure_ascii=False), encoding="utf-8")
         (d / ".gitattributes").write_text(GITATTRIBUTES, encoding="utf-8")
-        for src in ("LICENSE",):
+        # KINDS.md ships with every starter: the generator and mirror packs say
+        # "OPEN QUESTION -- see KINDS.md", and those are exactly the two kinds
+        # where the open question IS the content. Pointing a reader at a file
+        # that is not in the repo they cloned is worse than not pointing at all.
+        for src in ("LICENSE", "suites/kinds/KINDS.md"):
             if (ROOT / src).exists():
-                (d / src).write_text((ROOT / src).read_text(encoding="utf-8"),
-                                     encoding="utf-8")
+                (d / Path(src).name).write_text(
+                    (ROOT / src).read_text(encoding="utf-8"), encoding="utf-8")
         made.append((kind, pack.get("tier"), d))
 
     for kind, tier, d in made:
