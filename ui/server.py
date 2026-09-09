@@ -2509,6 +2509,15 @@ class H(BaseHTTPRequestHandler):
                            f"{lg_hits} hit, {lg_miss} miss. A miss that confirms its own "
                            f"premise still counts as a miss here.")
                           if live == 0 else ""})
+        if p == "/api/modelgraph":
+            # The MODEL graph (how mechanisms connect across brainstorms) is a
+            # different object from /api/mindmap (the entity atlas), so it gets
+            # its own route rather than overloading one. Same nodes/edges shape.
+            f = ROOT / "map" / "model_graph.json"
+            if not f.exists():
+                return self._send(404, {"error": "no model graph yet -- run "
+                                                 "python -m suites.model_graph"})
+            return self._send(200, json.load(f.open(encoding="utf-8")))
         if p == "/api/garden-page":
             try:
                 sys.path.insert(0, str(UI))
