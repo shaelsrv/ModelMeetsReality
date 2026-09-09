@@ -13,6 +13,15 @@ from harness.fleet import ROOT, MODELS_DIR
 KINDS_DIR = Path(__file__).resolve().parent / "kinds"
 
 
+def _read_packs(f: Path) -> dict:
+    if not f.exists():
+        return {}
+    try:
+        return json.loads(f.read_text(encoding="utf-8")).get("packs", {})
+    except ValueError:
+        return {}
+
+
 def load_pack(kind: str) -> dict:
     """The discipline for this kind: premise shape, falsifier, and the question
     the agentic pass asks.
@@ -21,15 +30,17 @@ def load_pack(kind: str) -> dict:
     classifier scaffolded identically to a forecaster, and the difference that
     actually matters (what would prove it wrong) was left to the author to
     remember. The engine is shared; the discipline is not.
+
+    THE ELEVEN ARE A STARTING SET, NOT A TAXONOMY. `my_kinds.json` (gitignored,
+    yours, never overwritten by an engine update) is read first and wins on a
+    name collision, so you can add a kind the eleven do not cover -- or sharpen
+    one of theirs -- without editing a shipped file. A kind you invent is a
+    claim about what would falsify a whole CLASS of model; writing one is the
+    same discipline as writing a model, one level up.
     """
-    f = KINDS_DIR / "packs.json"
-    if not f.exists():
-        return {}
-    try:
-        packs = json.loads(f.read_text(encoding="utf-8")).get("packs", {})
-    except ValueError:
-        return {}
-    return packs.get(kind, {})
+    return (_read_packs(KINDS_DIR / "my_kinds.json").get(kind)
+            or _read_packs(KINDS_DIR / "packs.json").get(kind)
+            or {})
 
 
 MODEL_TMPL = """# {title} — (v1)
@@ -89,6 +100,19 @@ def main():
     rdir = MODELS_DIR / a.slug
     rdir.mkdir(exist_ok=True)
     pack = load_pack(a.kind)
+    # An unknown kind is allowed -- the eleven are a starting set. But it must not
+    # scaffold SILENTLY, which is what happened before: you got a model with a
+    # label, no premise shape, no falsifier and an empty agentic frame, and
+    # nothing said so. Say it, and say how to fix it.
+    if not pack:
+        known = sorted(set(_read_packs(KINDS_DIR / "packs.json"))
+                       | set(_read_packs(KINDS_DIR / "my_kinds.json")))
+        print(f"  NOTE: '{a.kind}' has no discipline pack, so this model scaffolds")
+        print( "        without a premise shape, a falsifier, or an agentic frame.")
+        print( "        Known kinds: " + ", ".join(known))
+        print(f"        To define '{a.kind}' as a real kind, add it to")
+        print( "        suites/kinds/my_kinds.json -- see suites/kinds/KINDS.md")
+        print( "        ('Creating your own kind'). Then re-run this command.")
     _nl = chr(10)
     _premise = (pack.get("premise_shape")
                 and ("*Shape for a " + a.kind + ":* `" + pack["premise_shape"] + "`"

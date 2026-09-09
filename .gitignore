@@ -5,3 +5,7 @@ imports/
 trajectory/
 audits/
 povs/
+
+# Your own kind definitions. Read before the shipped packs and wins on a name
+# collision, so an engine update never overwrites your discipline.
+suites/kinds/my_kinds.json
