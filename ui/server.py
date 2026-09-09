@@ -719,6 +719,13 @@ kbd { font-family:"IBM Plex Mono",monospace; background:var(--panel); border:1px
         <span id="mmwval" class="mono" style="font-size:.75rem"></span></label>
       <label style="font-size:.78rem;color:var(--sub);cursor:pointer">
         <input type="checkbox" id="mmspin" checked onchange="mmSpin()"> auto-rotate</label>
+      <span style="font-size:.78rem;color:var(--sub)">find
+        <input type="text" id="mmq" placeholder="entity name…" autocomplete="off"
+          oninput="mmSearch()" onkeydown="if(event.key==='Escape'){this.value='';mmSearch()}"
+          style="width:11rem;padding:.2rem .45rem;font-size:.78rem;vertical-align:middle;
+                 background:var(--bg);border:1px solid var(--line);border-radius:5px;
+                 color:var(--ink)">
+        <span id="mmqn" class="mono" style="font-size:.72rem"></span></span>
       <span class="muted" style="font-size:.75rem">drag to rotate · scroll to zoom · click a node for its dossier</span>
     </div>
     <div id="mmbody" style="touch-action:none"><p class="muted">loading…</p></div>
@@ -1238,6 +1245,7 @@ const KIND_COLOR = { company:'#4fc3a1', market:'#d4b45a', nation:'#7aa7e0',
                      institution:'#c08fd8', person:'#e0805a' };
 /* ---- 3D force graph: 185 edges are unreadable on a plane but separable in space ---- */
 let MM = null, mmRot = {x:-0.35, y:0.6}, mmZoom = 1, mmTimer = null, mmDrag = null;
+let mmHits = null;   // Set of node ids matching the search, or null for no search
 const MM_W = 780, MM_H = 520;
 
 function mmSimulate(nodes, edges){
@@ -1313,11 +1321,15 @@ function mmRender(){
     const p = P[n.id];
     const r = (5 + Math.min(n.fragments,100)/9) * p.depth * mmZoom;
     const col = KIND_COLOR[n.kind] || 'var(--sub)';
-    svg += `<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="${r.toFixed(1)}" `+
-      `fill="${col}" opacity="${(0.35+p.depth*0.5).toFixed(2)}" style="cursor:pointer" `+
+    const hit = !mmHits || mmHits.has(n.id);
+    const op = hit ? (0.35+p.depth*0.5) : 0.07;
+    svg += (hit && mmHits ? `<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" `+
+      `r="${(r+4).toFixed(1)}" fill="none" stroke="var(--ok)" stroke-width="2" opacity=".9"/>` : '')+
+      `<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="${r.toFixed(1)}" `+
+      `fill="${col}" opacity="${op.toFixed(2)}" style="cursor:pointer" `+
       `onclick="entDetail('${n.id}')"><title>${esc(n.name)} (${esc(n.kind)}) · `+
       `${n.fragments} fragments · ${n.repos.length} repos</title></circle>`;
-    if (n.fragments >= 14 || p.depth > 1.02)
+    if (mmHits ? hit : (n.fragments >= 14 || p.depth > 1.02))
       svg += `<text x="${p.px.toFixed(1)}" y="${(p.py - r - 4).toFixed(1)}" `+
         `text-anchor="middle" style="font-size:${(9.5*p.depth).toFixed(1)}px;`+
         `fill:var(--ink);opacity:${(p.depth-0.55).toFixed(2)};pointer-events:none">`+
@@ -1359,6 +1371,34 @@ function mmFilter(){
   const idx = Math.min(ws.length-1, Math.floor(ws.length * (1 - pct/100)));
   MM.threshold = ws.length ? ws[idx] : 0;
   document.getElementById('mmwval').textContent = MM.threshold.toFixed(3);
+  mmRender();
+}
+
+function mmSearch(){
+  if (!MM) return;
+  const q = (document.getElementById('mmq').value || '').trim().toLowerCase();
+  const out = document.getElementById('mmqn');
+  if (!q){ mmHits = null; out.textContent = ''; out.style.color = 'var(--sub)'; mmRender(); return; }
+  const hits = MM.nodes.filter(n =>
+    (n.name||'').toLowerCase().includes(q) || (n.id||'').toLowerCase().includes(q));
+  mmHits = new Set(hits.map(n => n.id));
+
+  // A match hidden by the edge-strength slider would look like "not found", which
+  // is the wrong answer to "is this entity in the graph". Show everything while a
+  // search is active so a hit is always reachable.
+  MM.showAll = hits.length > 0;
+
+  out.textContent = hits.length ? hits.length + (hits.length===1?' match':' matches') : 'no match';
+  out.style.color = hits.length ? 'var(--ok)' : 'var(--warn)';
+
+  // One hit: turn the camera to it, so it is not left behind the cloud.
+  if (hits.length === 1){
+    const n = hits[0];
+    mmRot.y = -Math.atan2(n.z, n.x) + Math.PI/2;
+    mmRot.x = -0.35;
+    const spin = document.getElementById('mmspin');
+    if (spin.checked){ spin.checked = false; mmSpin(); }   // stop drifting off the target
+  }
   mmRender();
 }
 
