@@ -90,8 +90,11 @@ def chat(
     """Send a chat completion to one model via OpenRouter. Returns a ChatResult;
     never raises for an API error — it carries `error` so a benchmark run can score a
     model as 'failed to respond' rather than crashing the whole sweep."""
+    # A local server (Ollama, LM Studio, vLLM) authenticates nothing, so demanding
+    # a key here made the documented "fully local, no API key" path impossible --
+    # it failed before the request was ever built. Only a REMOTE base needs one.
     key = os.environ.get("OPENROUTER_API_KEY")
-    if not key:
+    if not key and not _is_local(os.environ.get("OPENROUTER_BASE", BASE)):
         return ChatResult(text="", model=model, error="OPENROUTER_API_KEY not set")
 
     body: dict[str, Any] = {
@@ -109,7 +112,6 @@ def chat(
 
     data = json.dumps(body).encode()
     headers = {
-        "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
         # OpenRouter asks for these for attribution/ranking; harmless if unset.
         # Attribution headers are OPTIONAL and were shipping a specific domain on
@@ -118,11 +120,16 @@ def chat(
         "HTTP-Referer": os.environ.get("OPENROUTER_REFERER", ""),
         "X-Title": "Copilot Reality Benchmark",
     }
+    # Omitted entirely when running against a local server: some reject a
+    # malformed 'Bearer None' outright.
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
 
+    base = os.environ.get("OPENROUTER_BASE", BASE)
     last_err = None
     for attempt in range(retries):
         try:
-            req = urllib.request.Request(f"{BASE}/chat/completions", data=data, headers=headers)
+            req = urllib.request.Request(f"{base}/chat/completions", data=data, headers=headers)
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 j = json.loads(resp.read().decode())
             choice = (j.get("choices") or [{}])[0]
