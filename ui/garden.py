@@ -196,7 +196,15 @@ function gRender(){
         <a href="${esc(m.repo)}" target="_blank" rel="noopener"
            style="font-size:.78rem;color:var(--accd)">repo &rarr;</a>` : ''}
     </div>`;
-  }).join('') : '<p class="muted">nothing matches those filters.</p>')
+  }).join('')
+    // Distinguish "your filters excluded everything" from "the registry is
+    // empty". Saying "nothing matches those filters" when there are no models
+    // at all sends the reader hunting for a filter they never set.
+    : (rows.length === 0
+        ? '<p class="muted">The public garden has no submitted models yet. '
+          + 'An empty list means nobody has submitted one &mdash; not that the '
+          + 'fetch failed. The source is named above.</p>'
+        : '<p class="muted">nothing matches those filters.</p>'))
     + (rows.length > shown.length
         ? `<button class="act" style="margin-top:.6rem" onclick="gMore(${PAGE})">
              show ${Math.min(PAGE, rows.length - shown.length)} more</button>`
