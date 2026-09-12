@@ -61,7 +61,25 @@ Return ONLY JSON:
 {{"observed":[{{"item":"...","date":"...","source":"..."}}],
 "model_read":"one paragraph",
 "predictions":[{{"claim":"specific falsifiable claim","resolution_criteria":"what observable settles it",
-"confidence":0.0-1.0,"mechanism":"which model mechanism drives this"}}]}}"""
+"confidence":0.0-1.0,"mechanism":"which model mechanism drives this",
+"possible_states":["every state this entity could plausibly be in at the resolve date"],
+"predicted_state":"the ONE from possible_states you are calling"}}]}}
+
+ON possible_states -- this is required, and it is not decoration.
+
+List the states the entity could ACTUALLY be in on the resolve date, as short
+noun phrases a stranger could check: "enforces", "extends the deadline",
+"issues further requests only", "silent". Three to six. Include the states you
+think are UNLIKELY, especially the do-nothing one -- a list containing only the
+outcome you expect is not a list.
+
+predicted_state must be one of them, verbatim.
+
+Why: a bare claim that turns out wrong tells you only that it was wrong. A claim
+that named its alternatives tells you WHICH WAY it was wrong, which is the part
+that revises a model. And if the entity ends up in a state nobody listed, that
+is the most informative outcome available -- the model did not know the option
+existed."""
 
 ASSESS_PROMPT = """You have LIVE WEB ACCESS. Today is {today}. Assess this prediction made on {made_on}
 about {name}, due to resolve by {resolve_by}:
@@ -70,13 +88,21 @@ CLAIM: {claim}
 RESOLUTION CRITERIA: {criteria}
 CONFIDENCE GIVEN: {confidence}
 MECHANISM CITED: {mechanism}
+STATES THE MODEL NAMED: {possible_states}
+STATE IT PREDICTED: {predicted_state}
 
 STEP 1 — search the web for what ACTUALLY happened (cite sources/dates).
 STEP 2 — verdict: hit / miss / partial / unresolvable.
-STEP 3 — if miss/partial: the LEARNING — what did the model read get wrong, one line usable in
+STEP 3 — which of the named states did the entity actually end up in? Answer with
+one of them verbatim, or with UNLISTED if it ended up somewhere nobody named.
+UNLISTED is the most informative answer available and must never be forced into
+the nearest listed state -- it means the model did not know the option existed,
+which is a bigger finding than a wrong call among known options.
+STEP 4 — if miss/partial: the LEARNING — what did the model read get wrong, one line usable in
 future rounds?
 
 Return ONLY JSON: {{"what_happened":"...with sources","verdict":"hit|miss|partial|unresolvable",
+"actual_state":"the state it ended in, verbatim from the named list, or UNLISTED",
 "learning":"one line (empty string if hit)"}}"""
 
 
@@ -184,7 +210,13 @@ def cmd_assess(repo, model):
              .replace("{name}", p["name"]).replace("{resolve_by}", p["resolve_by"])
              .replace("{claim}", p["claim"]).replace("{criteria}", p.get("resolution_criteria", ""))
              .replace("{confidence}", str(p.get("confidence")))
-             .replace("{mechanism}", p.get("mechanism", "")))
+             .replace("{mechanism}", p.get("mechanism", ""))
+             # Older rows predate possible_states; say so rather than substitute
+             # an empty list, which would read as "the model named no options".
+             .replace("{possible_states}",
+                      " | ".join(p.get("possible_states") or [])
+                      or "(not recorded -- this prediction predates state enumeration)")
+             .replace("{predicted_state}", p.get("predicted_state") or "(not recorded)"))
         r = chat(model + ":online", [{"role": "user", "content": q}], temperature=0.3, max_tokens=1400)
         d = parse_json(r.text) if not r.error else None
         if not d:
@@ -192,6 +224,14 @@ def cmd_assess(repo, model):
         v = d.get("verdict", "unresolvable")
         p["status"], p["assessed_on"] = v, today
         p["what_happened"] = d.get("what_happened", "")[:500]
+        # Which named alternative actually occurred. UNLISTED means the entity
+        # went somewhere the model never listed -- a bigger finding than a wrong
+        # call among known options, so it is recorded distinctly and printed.
+        act = str(d.get("actual_state", "")).strip()
+        if act:
+            p["actual_state"] = act[:120]
+            if act.upper() == "UNLISTED":
+                p["unlisted_state"] = True
         outcome = {"hit": 1.0, "partial": 0.5, "miss": 0.0}.get(v)
         hits += v == "hit"; partials += v == "partial"; misses += v == "miss"
         if outcome is not None and isinstance(p.get("confidence"), (int, float)):
@@ -199,7 +239,12 @@ def cmd_assess(repo, model):
         if d.get("learning"):
             led["learnings"].append({"entity": p["entity"], "round": p["round"],
                                      "assessed": today, "learning": d["learning"]})
-        print(f"  {v.upper():>12} {p['claim'][:70]}")
+        tag = ""
+        if p.get("unlisted_state"):
+            tag = "  <- UNLISTED STATE"
+        elif p.get("actual_state"):
+            tag = f"  [{p['actual_state'][:40]}]"
+        print(f"  {v.upper():>12} {p['claim'][:60]}{tag}")
     save_ledger(lpath, led)
     print(f"score: {hits} hit · {partials} partial · {misses} miss"
           + (f" · Brier {sum(brier)/len(brier):.3f}" if brier else ""))
