@@ -1328,7 +1328,14 @@ function mmRender(){
       `<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="${r.toFixed(1)}" `+
       `fill="${col}" opacity="${op.toFixed(2)}" style="cursor:pointer" `+
       `onclick="entDetail('${n.id}')"><title>${esc(n.name)} (${esc(n.kind)}) · `+
-      `${n.fragments} fragments · ${n.repos.length} repos</title></circle>`;
+      `${n.fragments} fragments · ${n.repos.length} repos`+
+      // Declared watches are intent, not evidence -- shown separately from
+      // repos so a model that committed to an entity but has written nothing
+      // about it is visible as exactly that.
+      ((n.watched_by && n.watched_by.length)
+        ? `
+watched by: ${n.watched_by.join(', ')}` : '')+
+      `</title></circle>`;
     if (mmHits ? hit : (n.fragments >= 14 || p.depth > 1.02))
       svg += `<text x="${p.px.toFixed(1)}" y="${(p.py - r - 4).toFixed(1)}" `+
         `text-anchor="middle" style="font-size:${(9.5*p.depth).toFixed(1)}px;`+

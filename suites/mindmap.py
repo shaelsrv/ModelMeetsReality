@@ -128,6 +128,40 @@ def members(reg: dict, rows: list) -> dict:
     return out
 
 
+def declared_watches() -> tuple:
+    """Which models DECLARED they watch each entity, read from watch.json.
+
+    Kept SEPARATE from `repos` on purpose. Those are different relationships:
+
+      repos       -- the corpus wrote about this entity. Evidence, accumulated.
+      watched_by  -- a model committed to observe it. Intent, chosen at init.
+
+    Merging them would let a model look connected to an entity it has never
+    produced a word about, and would dilute the empirical co-occurrence weights
+    with declarations. The gap between the two sets is the interesting part:
+
+      watched_by - repos  = declared but never produced. Either the pass has
+                            not run, or the entity was aspirational.
+      repos - watched_by  = written about but unwatched -- the same signal
+                            refit's widening step reports, now visible here.
+
+    Returns (mapping entity-id -> [models], list of unmatched watch entries).
+    """
+    out, unmatched = {}, []
+    for wf in sorted(TOOLS.glob("*/watch.json")):
+        model = wf.parent.name
+        try:
+            cfg = json.loads(wf.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+        for e in cfg.get("entities", []):
+            eid = str(e.get("id", "")).strip().lower()
+            if not eid or eid == "example":
+                continue
+            out.setdefault(eid, set()).add(model)
+    return {k: sorted(v) for k, v in out.items()}, unmatched
+
+
 def build() -> dict:
     reg = registry()
     if not reg:
@@ -137,6 +171,7 @@ def build() -> dict:
         raise SystemExit("no memory index — run suites.memory_index --build first")
 
     mem = members(reg, rows)
+    watches, _unmatched = declared_watches()
     nodes = []
     for s, e in reg.items():
         m, sem = mem[s]["mention"], mem[s]["semantic"]
@@ -146,6 +181,8 @@ def build() -> dict:
             "part_of": PART_OF.get(s),
             "fragments": len(idx), "by_mention": len(m), "by_similarity": len(sem),
             "repos": sorted({rows[i]["repo"] for i in idx}),
+            # Declared intent, not evidence -- see declared_watches().
+            "watched_by": watches.get(s, []),
             "kinds": sorted({rows[i]["kind"] for i in idx})[:5],
         })
 
@@ -208,6 +245,43 @@ def main():
         par = f" (part of {n['part_of']})" if n.get("part_of") else ""
         print(f"  {n['name']:<24}{par:<18} {n['fragments']:>3} = "
               f"{n['by_mention']:>3}m + {n['by_similarity']:>3}s · {len(n['repos'])} repos")
+    # The gap between declared and produced. Both directions are findings, and
+    # neither is visible from the node list alone.
+    declared_only, produced_only = [], []
+    for n in d["nodes"]:
+        w, r = set(n.get("watched_by") or []), set(n.get("repos") or [])
+        for m in sorted(w - r):
+            declared_only.append((n["name"], m))
+        for m in sorted(r - w):
+            produced_only.append((n["name"], m))
+    if declared_only:
+        print()
+        print(f"  declared but not yet produced ({len(declared_only)}):")
+        for name, m in declared_only[:8]:
+            print(f"    {m} watches {name}, and has written nothing about it")
+    # A watch entry matching NO entity node is the common case and must not pass
+    # silently: watch ids are often topics ("ai-evals", "benchmark-gaming")
+    # while entity ids are actors ("amazon", "china"). Zero matches usually means
+    # the two namespaces have not been reconciled, not that nothing is watched.
+    node_ids = {n["id"] for n in d["nodes"]}
+    orphan = sorted(set(watches) - node_ids)
+    if orphan:
+        print()
+        print(f"  watch entries matching no entity node ({len(orphan)} of "
+              f"{len(watches)}):")
+        for o in orphan[:8]:
+            print(f"    {o}  (watched by {', '.join(watches[o])})")
+        print("    These are watched but unmapped -- usually a topic watched")
+        print("    where the atlas registers actors. Register them with")
+        print("    suites.entities --build, or accept they are out of scope.")
+
+    if produced_only:
+        print()
+        print(f"  written about but not watched ({len(produced_only)}):")
+        for name, m in produced_only[:8]:
+            print(f"    {m} writes about {name} without declaring it")
+        print("    (same signal refit's widening step reports)")
+
     print("\n  strongest links:")
     for e in d["edges"][:10]:
         print(f"  {e['weight']:.3f}  {e['a']:<20} — {e['b']:<20} {e['why']}")
