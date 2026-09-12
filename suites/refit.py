@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+import re
 from pathlib import Path
 
 from harness.fleet import MODELS_DIR
@@ -50,6 +51,49 @@ def load_rows(model: str, ledger: str | None) -> list:
         return []
     d = json.loads(f.read_text(encoding="utf-8"))
     return d.get("predictions", d if isinstance(d, list) else [])
+
+
+def unwatched_names(model: str, rows: list) -> list:
+    """Proper nouns the graded record kept naming that this model never watched.
+
+    WHY A v2 MUST WIDEN. A model that only ever watches its original list can
+    never be surprised by the world -- and worse, refitting tends to NARROW it,
+    because the entities it got right are the ones it keeps. Over versions that
+    converges on a model that is correct about a shrinking set, which reads as
+    improvement and is the opposite.
+
+    So the refit proposal has to carry the entities the evidence named. The
+    mining is deliberately dumb -- capitalised runs, frequency, minus what is
+    already watched -- because a candidate list a human vetoes is useful and a
+    clever list that auto-registers is not.
+    """
+    wf = MODELS_DIR / model / "watch.json"
+    watched = set()
+    if wf.exists():
+        try:
+            for e in json.loads(wf.read_text(encoding="utf-8")).get("entities", []):
+                watched.add(str(e.get("id", "")).lower())
+                watched.add(str(e.get("name", "")).lower())
+        except ValueError:
+            pass
+
+    blob = " ".join(str(r.get(k, "")) for r in rows
+                    for k in ("claim", "mechanism", "what_happened",
+                              "resolution_criteria"))
+    # Capitalised multi-word runs and all-caps acronyms; drop sentence-openers
+    # by requiring the term to recur.
+    # Allow a trailing number so "Article 91" and "GPT-6" survive intact --
+    # splitting on the digit yielded a bare "Article", which is not an entity.
+    cand = re.findall(
+        r"\b(?:[A-Z][a-zA-Z0-9-]+(?:\s+(?:[A-Z][a-zA-Z0-9-]+|\d{1,4})){0,3}|[A-Z]{2,6})\b",
+        blob)
+    stop = {"The", "This", "That", "By", "If", "Given", "It", "A", "An", "In",
+            "On", "No", "Not", "And", "Or", "But", "For", "MISS", "HIT", "OPEN",
+            "TRUE", "FALSE", "Both", "Each", "Every", "Any", "One", "Two"}
+    counts = collections.Counter(
+        c.strip() for c in cand
+        if c.strip() and c.strip() not in stop and c.strip().lower() not in watched)
+    return [(n, c) for n, c in counts.most_common(12) if c >= 2]
 
 
 def by_entity(rows: list) -> dict:
@@ -113,6 +157,24 @@ def main() -> None:
         lines.append("")
         if m and not h:
             retire_flags.append(ent)
+
+    # What the record named that this model never watched.
+    fresh = unwatched_names(a.model, rows)
+    lines += ["## New entities the record named", ""]
+    if fresh:
+        lines += ["The graded rows keep naming these, and this model watches",
+                  "none of them:", ""]
+        lines += [f"- **{n}** — {c} mentions" for n, c in fresh]
+        lines += ["",
+                  "A v2 must either watch them or say why not. Refitting tends",
+                  "to NARROW a model toward the entities it already got right,",
+                  "which reads as improvement and is the opposite — widening is",
+                  "the correction.", ""]
+    else:
+        lines += ["Nothing recurring that is not already watched. Either the",
+                  "model's entity set covers its own evidence, or the record is",
+                  "too small to tell — with few graded rows, assume the latter.",
+                  ""]
 
     lines += ["## What a v2 must do", "",
               "1. **Keep what explains the hits.** A revision that fixes a miss",
