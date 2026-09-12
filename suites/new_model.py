@@ -7,6 +7,7 @@ import argparse, json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import json
+import re
 
 from harness.fleet import ROOT, MODELS_DIR
 
@@ -81,6 +82,46 @@ WATCH_TMPL = {"model_file": "MODEL.md", "ledger": "predict/ledger.json",
   "default_model": "openai/gpt-4o",
   "entities": [{"id": "example", "name": "Example entity",
                 "watch": "what to observe about it"}]}
+
+def entity_overlap(slug: str, entities: list) -> list:
+    """Warn when a new model watches what the fleet already watches.
+
+    THE FAILURE THIS CATCHES. Run several lenses over one event and they can
+    converge on a single reading wearing several vocabularies -- a real
+    brainstorm's own adversary returned exactly that verdict. Distinct entity
+    commitments are the STRUCTURAL counter: lenses cannot collapse into one
+    story if they are contractually watching different things.
+
+    Overlap is not forbidden. Two kinds can legitimately watch the same actor
+    for different observables -- a tracker watching OpenAI for release cadence
+    and a decision-model watching it for revealed preference are not the same
+    claim. So the check is on the WATCH TEXT, not the entity id: sharing an
+    entity is fine, sharing what you look at is the warning.
+
+    Returns a list of (other_model, entity_id, similarity) worth showing.
+    """
+    def toks(t):
+        return {w for w in re.findall(r"[a-z]{4,}", (t or "").lower())}
+
+    mine = {e.get("id"): toks(e.get("watch")) for e in entities if e.get("id")}
+    hits = []
+    for d in sorted(MODELS_DIR.glob("*/watch.json")):
+        other = d.parent.name
+        if other == slug:
+            continue
+        try:
+            theirs = json.loads(d.read_text(encoding="utf-8")).get("entities", [])
+        except ValueError:
+            continue
+        for e in theirs:
+            eid, ew = e.get("id"), toks(e.get("watch"))
+            if eid not in mine or not ew or not mine[eid]:
+                continue
+            sim = len(mine[eid] & ew) / len(mine[eid] | ew)
+            if sim >= 0.30:
+                hits.append((other, eid, sim))
+    return sorted(hits, key=lambda h: -h[2])
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -161,6 +202,20 @@ def main():
             mapped.append(pf.stem)
 
     print(f"scaffolded ../{a.slug}/ and registered in fleet.json")
+
+    # Distinctness warning, not a block. A model is free to share an entity with
+    # a sibling; what it must not share is what it LOOKS AT about that entity,
+    # or the two lenses will report one story twice.
+    dup = entity_overlap(a.slug, watch.get("entities", []))
+    if dup:
+        print()
+        print("  NOTE: this model watches what siblings already watch:")
+        for other, eid, sim in dup[:6]:
+            print(f"        {eid}  ~{int(sim*100)}% same watch-text as {other}")
+        print("        Overlap is allowed, but state what THIS model looks at")
+        print("        that the other does not -- edit the 'watch' text in")
+        print("        watch.json. Two lenses on the same observable produce")
+        print("        one reading in two vocabularies, not two readings.")
     if mapped:
         print(f"  mapped at level {a.level} in: {', '.join(mapped)}")
     else:
