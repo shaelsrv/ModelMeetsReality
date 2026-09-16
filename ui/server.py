@@ -35,7 +35,14 @@ if _fleet_f.exists():
 # where this instance's model repos live: its own subdirectory when fleet.json sets
 # models_dir, else the shared parent. Two instances under one parent otherwise
 # share a namespace and collide.
-TOOLS = (ROOT / _cfg["models_dir"]).resolve() if _cfg.get("models_dir") else ROOT.parent
+# MODELS_DIR first, matching harness/fleet.py. Without it a container resolves
+# to ROOT.parent -- which is "/" when the engine lives at /app -- and then
+# iterates every top-level directory looking for MODEL.md, dying on /root with
+# a permission error. The env override is the only correct answer when the
+# models are a mount rather than a sibling directory.
+TOOLS = (Path(os.environ["MODELS_DIR"]).resolve() if os.environ.get("MODELS_DIR")
+         else ((ROOT / _cfg["models_dir"]).resolve() if _cfg.get("models_dir")
+               else ROOT.parent))
 UI = ROOT / "ui"
 # so `import chat` works regardless of the cwd the server is started from
 sys.path.insert(0, str(UI))
@@ -3082,11 +3089,21 @@ if __name__ == "__main__":
         port = int(os.environ["COCKPIT_PORT"])
     if "--port" in sys.argv:
         port = int(sys.argv[sys.argv.index("--port") + 1])
+    # 127.0.0.1 by default and deliberately: the cockpit has no auth, so it must
+    # not be reachable off the machine unless the operator says so. COCKPIT_HOST
+    # exists for one case -- inside a container, where 127.0.0.1 is the
+    # container's own loopback and the published port would answer nothing.
+    # Setting it to 0.0.0.0 anywhere else exposes an unauthenticated UI.
+    host = os.environ.get("COCKPIT_HOST", "127.0.0.1")
     try:
-        srv = ThreadingHTTPServer(("127.0.0.1", port), H)
+        srv = ThreadingHTTPServer((host, port), H)
     except OSError as e:
-        raise SystemExit(f"cannot bind 127.0.0.1:{port} ({e}). Another instance may "
+        raise SystemExit(f"cannot bind {host}:{port} ({e}). Another instance may "
                          f"already be running — pass --port 8788 or set cockpit_port "
                          f"in fleet.json.")
-    print(f"Model Cockpit ({ROOT.name}) -> http://127.0.0.1:{port}  (Ctrl+C to stop)")
+    shown = "127.0.0.1" if host in ("0.0.0.0", "::") else host
+    if host != "127.0.0.1":
+        print(f"  [!] bound to {host} — this UI has no authentication. Intended "
+              f"for containers; do not do this on a shared network.")
+    print(f"Model Cockpit ({ROOT.name}) -> http://{shown}:{port}  (Ctrl+C to stop)")
     srv.serve_forever()
