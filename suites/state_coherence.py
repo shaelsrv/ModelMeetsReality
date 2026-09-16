@@ -102,7 +102,13 @@ def check(model: str) -> list:
         # (A2A, MCP, or ACP) will announce..."). Checking the state alone missed
         # a real misfiling on the first live round.
         for r in rs:
-            ps = toks(r.get("predicted_state", "")) | toks(r.get("claim", ""))
+            claim = r.get("claim", "")
+            # A parenthesised list of rivals is a comparison set, not a subject.
+            # "within 7 days of a rival lab's (OpenAI, Anthropic, Meta...)" names
+            # others legitimately; treating that as a misfiling was a false
+            # positive on the first multi-actor model.
+            claim_wo_lists = re.sub(r"\([^)]*,[^)]*\)", " ", claim)
+            ps = toks(r.get("predicted_state", "")) | toks(claim_wo_lists)
             if not ps:
                 continue
             own = toks(ent) | toks(ents.get(ent, ""))
